@@ -1,0 +1,6 @@
+@Back_End_TechTrend_Emporium_HostAddress = http://localhost:5096
+
+GET {{Back_End_TechTrend_Emporium_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
