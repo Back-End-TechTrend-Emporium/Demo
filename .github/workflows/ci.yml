@@ -3,12 +3,6 @@
 on:
   pull_request:
     branches: [ main ]
-  push:
-    branches:
-      - feature/**
-      - fix/**
-      - chore/**
-      - hotfix/**
 
 
 jobs:
