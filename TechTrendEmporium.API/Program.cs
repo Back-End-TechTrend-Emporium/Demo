@@ -210,3 +210,6 @@ async Task InitializeDatabase(ApplicationDbContext context, UserManager<User> us
         }
     }
 }
+
+// Make Program class accessible for testing
+public partial class Program { }

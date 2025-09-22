@@ -1,10 +1,1 @@
-namespace TechTrendEmporium.Tests;
-
-public class UnitTest1
-{
-    [Fact]
-    public void Test1()
-    {
-
-    }
-}
+// Remove this file and create proper unit tests
