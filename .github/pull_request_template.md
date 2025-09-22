@@ -1,16 +1,17 @@
-@"
-## Resumen
-Describe qué cambia y por qué.
+## Descripción
+<!-- Qué cambia y por qué -->
+
+## Tipo de cambio
+- [ ] Fix
+- [ ] Feature
+- [ ] Refactor
+- [ ] Docs
 
 ## Checklist
-- [ ] CI verde (build + tests)
-- [ ] 2 aprobaciones (incluye Maintainer – CODEOWNERS)
-- [ ] Docs/Swagger/Postman actualizados si aplica
-- [ ] No rompe compatibilidad (o explica mitigación)
+- [ ] Tests pasan en CI
+- [ ] Imagen Docker versionada con el commit
+- [ ] **Docs actualizadas** (en `docs/` o Wiki), o marqué el PR con la etiqueta `no-docs-needed`
+- [ ] Decisiones/razones documentadas (ver `docs/DECISIONS.md`)
 
-## Evidencia
-Logs, capturas, link a issue/story.
-
-## Rollback
-Cómo revertir en caso de problema.
-"@ | Out-File -Encoding utf8 .github\pull_request_template.md
+## Deploy notes (si aplica)
+- [ ] Cambios en infra/variables
