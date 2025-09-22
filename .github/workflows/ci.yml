@@ -8,7 +8,7 @@ on:
       - feature/**
       - fix/**
       - chore/**
-      - hot
+      - hotfix/**
 
 
 jobs:
