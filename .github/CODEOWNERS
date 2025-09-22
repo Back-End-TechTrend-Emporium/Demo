@@ -1,9 +1,7 @@
 # CODEOWNERS
-# Este archivo define qué equipos deben revisar y aprobar cambios
-# cuando se modifican archivos en ciertas rutas del repo.
+# Dos aprobaciones siempre (se controla en la regla de rama)
+# /src: pueden aprobar Developers o Maintainers
+/src/  @Back-End-TechTrend-Emporium/developers @Back-End-TechTrend-Emporium/maintainers
 
-# 🔹 Todo el código fuente requiere revisión del equipo Maintainers
-/src/   @Back-End-TechTrend-Emporium/maintainers
-
-# 🔹 Workflows de CI/CD también requieren revisión de Maintainers
-/.github/workflows/   @Back-End-TechTrend-Emporium/maintainers
+# Workflows de CI/CD: solo Maintainers
+/.github/workflows/  @Back-End-TechTrend-Emporium/maintainers
