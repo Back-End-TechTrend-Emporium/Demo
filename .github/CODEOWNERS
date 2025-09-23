@@ -1,7 +1,15 @@
 # CODEOWNERS
-# Dos aprobaciones siempre (se controla en la regla de rama)
-# /src: pueden aprobar Developers o Maintainers
+
+# Código de aplicación
 /src/  @Back-End-TechTrend-Emporium/developers @Back-End-TechTrend-Emporium/maintainers
 
-# Workflows de CI/CD: solo Maintainers
-/.github/workflows/  @Back-End-TechTrend-Emporium/maintainers
+# Documentación
+/docs/  @Back-End-TechTrend-Emporium/developers @Back-End-TechTrend-Emporium/maintainers
+
+# Workflows de CI/CD (permitir que Developers también aprueben)
+/.github/workflows/  @Back-End-TechTrend-Emporium/developers @Back-End-TechTrend-Emporium/maintainers
+
+# Catch-all: cualquier otro archivo sin regla específica
+*  @Back-End-TechTrend-Emporium/maintainers
+# Excepciones: archivos que cualquiera puede modificar
+/.github/CODEOWNERS  @Back-End-TechTrend-Emporium/maintainers
