@@ -7,13 +7,29 @@ using Logica.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// EF Core (con reintentos)
+// === Resolver connection string (config -> env vars de Azure App Service) ===
+string? connectionString =
+    builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")          // si el pipeline la setea as铆
+    ?? Environment.GetEnvironmentVariable("SQLCONNSTR_DefaultConnection")                 // App Service (type=SQLAzure)
+    ?? Environment.GetEnvironmentVariable("CUSTOMCONNSTR_DefaultConnection");             // App Service (custom)
+
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new InvalidOperationException(
+        "No se encontr贸 la cadena de conexi贸n 'DefaultConnection'. " +
+        "Define la Connection String en Azure App Service (Configuration > Connection strings) " +
+        "o inyecta la variable desde el pipeline.");
+}
+
+// === EF Core (con reintentos) ===
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        sql => sql.EnableRetryOnFailure()
-    )
-);
+        connectionString,
+        sql => sql.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorNumbersToAdd: null)));
 
 // Repos & Services
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -28,7 +44,7 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Migraciones condicionales
+// === Migraciones condicionales ===
 if (builder.Configuration.GetValue<bool>("EF:ApplyMigrationsOnStartup"))
 {
     using var scope = app.Services.CreateScope();
@@ -46,8 +62,7 @@ if (builder.Configuration.GetValue<bool>("EF:ApplyMigrationsOnStartup"))
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
         logger.LogError(ex, "An error occurred while migrating the database");
 
-        // En producci髇, si quieres que caiga la app cuando falle la migraci髇, deja el throw.
-        // Si prefieres que arranque igual, comenta la siguiente l韓ea.
+        // En producci贸n, si quieres que la app caiga al fallar la migraci贸n, deja el throw.
         if (app.Environment.IsProduction())
         {
             logger.LogCritical("Application stopped due to migration failure in Production");
@@ -56,7 +71,7 @@ if (builder.Configuration.GetValue<bool>("EF:ApplyMigrationsOnStartup"))
     }
 }
 
-// === Swagger habilitado por app setting tambi閚 en Producci髇 ===
+// === Swagger (habilitable en Prod con Swagger:Enabled y Swagger:ServeAtRoot) ===
 var swaggerEnabled = builder.Configuration.GetValue<bool>("Swagger:Enabled",
                       app.Environment.IsDevelopment());
 
@@ -66,12 +81,8 @@ if (swaggerEnabled)
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "TechTrendEmporium.Api v1");
-
-        // Si quieres que la ra韟 (/) abra Swagger en prod, activa Swagger:ServeAtRoot=true
         if (builder.Configuration.GetValue<bool>("Swagger:ServeAtRoot", false))
-        {
             c.RoutePrefix = string.Empty; // sirve Swagger en "/"
-        }
     });
 }
 
