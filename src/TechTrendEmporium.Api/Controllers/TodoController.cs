@@ -1,3 +1,4 @@
+/*
 using Back_End_TechTrend_Emporium.Abstractions;
 using Back_End_TechTrend_Emporium.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -84,3 +85,4 @@ namespace Back_End_TechTrend_Emporium.Controllers
         }
     }
 }
+*/
