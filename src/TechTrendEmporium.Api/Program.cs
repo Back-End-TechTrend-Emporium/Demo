@@ -1,20 +1,22 @@
-using Microsoft.OpenApi.Models;
 using Microsoft.EntityFrameworkCore;
-using Back_End_TechTrend_Emporium.Data;
-using Back_End_TechTrend_Emporium.Abstractions;
+using Microsoft.OpenApi.Models;
+using Data;
+using Logica.Interfaces;
+using Logica.Repositories;
+using Logica.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add Entity Framework with retry on failure
-builder.Services.AddDbContext<TodoDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("TodoDb"), 
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"), 
         sqlOptions => sqlOptions.EnableRetryOnFailure()));
 
-// Add repository
-builder.Services.AddScoped<ITodoRepository, EfTodoRepository>();
+// Register Repository and Service
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 builder.Services.AddControllers();
-
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -23,11 +25,11 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Ensure database is created
+// Ensure database is created and migrated
 using (var scope = app.Services.CreateScope())
 {
-    var context = scope.ServiceProvider.GetRequiredService<TodoDbContext>();
-    context.Database.EnsureCreated();
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    context.Database.Migrate();
 }
 
 if (app.Environment.IsDevelopment())
