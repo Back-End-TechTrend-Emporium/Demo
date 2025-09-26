@@ -1,12 +1,23 @@
-# Arquitectura
+# Architecture
 
 ## General
-- .NET service deployed on AWS (ECS Fargate).
-- `SHA` versioned docker images.
-- Pipelines GitHub Actions for CI/CD.
 
-## Decisiones clave
-- Look for `docs/decisions/` for decision making process (why ECS, why GHCR/ECR, etc.).
+* **.NET 8 Web API** (single deployable; layered architecture).
+* Deployed on **Azure Container Apps** (or Azure App Service—documented in decisions).
+* **Azure SQL Database** as the primary datastore.
+* **Docker images versioned by commit `SHA`** (labels include `org.opencontainers.image.revision`).
+* **GitHub Actions** pipelines for CI/CD with **OIDC** to Azure.
+* Images stored in **Azure Container Registry (ACR)**.
+
+## Key Decisions
+
+See `docs/decisions/` for ADRs covering:
+
+* Monolith-first layered architecture vs. microservices.
+* Azure Container Apps vs. App Service.
+* ACR vs. other registries.
+* Trunk-based development and branch protection.
+* JWT strategy, session recording, and approval workflow.
 
 ## System Overview
 
@@ -15,59 +26,87 @@ Mermaid at-a-glance:
 ```mermaid
 flowchart LR
   U[Users] --> UI[Web UI]
-  UI -->|JWT| APIGW(API Gateway/BFF)
-  APIGW --> AUTH[Auth Svc]
-  APIGW --> CAT[Catalog Svc]
-  APIGW --> REV[Review Svc]
-  APIGW --> WISH[Wishlist Svc]
-  APIGW --> CART[Cart Svc]
-  APIGW --> MOD[Moderation/Approvals]
-  CAT <-- SNS/SQS --> REV
-  ING[Ingestion Svc] -->|FakeStore| CAT
-  subgraph Data Stores
-    PG[(MySQL per svc schemas)]
-    REDIS[(ElastiCache Redis)]
+  UI -->|JWT| API[Backend API (Layered .NET)]
+  
+  subgraph Application Layer (Use Cases)
+    AUTH[Auth & Accounts Service<br/>- Signup/Login/Logout<br/>- Roles & Sessions]
+    CAT[Catalog Service<br/>- Products/Categories CRUD<br/>- List/Detail/Filters]
+    SHOP[Shopping Service<br/>- Wishlist<br/>- Cart + Coupons]
+    APPROVE[Approval Service<br/>- Jobs Queue<br/>- Approve/Decline]
+    SEED[Seed/Sync Service<br/>- FakeStore ingest]
   end
-  AUTH --> PG
-  CAT --> PG
-  REV --> PG
-  WISH --> PG
-  CART --> PG
-  MOD --> PG
-  AUTH --> REDIS
+
+  API --> AUTH
+  API --> CAT
+  API --> SHOP
+  API --> APPROVE
+
+  SEED -->|Fetch| FAKE[FakeStore API]
+
+  subgraph Infrastructure
+    SQL[(Azure SQL Database)]
+    REDIS[(Azure Cache for Redis):::opt]
+    MON[Azure Monitor / App Insights]
+  end
+
+  classDef opt fill:#f6f6f6,stroke:#999,color:#333
+
+  AUTH --> SQL
+  CAT --> SQL
+  SHOP --> SQL
+  APPROVE --> SQL
+
+  API --> MON
+  API -. optional caching .-> REDIS
+
+  FAKE --> SEED
 ```
 
-Key components: React/Next UI, ASP.NET Core APIs, ECS Fargate services, MySQL, ElastiCache Redis, SNS/SQS, API Gateway/ALB, CloudWatch/X-Ray.
+**Key components:** React/Next (Web UI), .NET 8 Web API, Azure Container Apps, Azure SQL Database, Azure Cache for Redis (optional), Azure Monitor/App Insights, GitHub Actions CI/CD, ACR.
 
 ---
 
 ## Architecture & Components
 
-### Services & Repos
+### Layers & Modules (single deployable)
 
-| Component              | Purpose                                                  | Tech          | Deployable |
-| ---------------------- | -------------------------------------------------------- | ------------- | ---------- |      |
-| API Gateway/BFF        | Route aggregation & authz                                | ASP.NET Core  | Yes        |
-| **Auth Service**       | `/api/auth`,`/api/login`,`/api/logout`,`/api/admin/auth` | .NET 8        | Yes        |
-| **Catalog Service**    | Products/Categories CRUD, list/detail                    | .NET 8        | Yes        |
-| **Review Service**     | Product reviews (list/add)                               | .NET 8        | Yes        |
-| **Wishlist Service**   | Wishlist CRUD                                            | .NET 8        | Yes        |
-| **Cart Service**       | Cart preview, totals, coupons                            | .NET 8        | Yes        |
-| **Moderation Service** | Approval jobs queue and actions                          | .NET 8        | Yes        |
-| **Ingestion Service**  | FakeStore seeding/sync                                   | .NET 8 Worker | Yes        |
+| Layer / Module              | Purpose                                                                               | Tech                          | Deployable                  |
+| --------------------------- | ------------------------------------------------------------------------------------- | ----------------------------- | --------------------------- |
+| **API Layer**               | REST controllers, input validation, DTOs, pagination, authn/z middleware              | ASP.NET Core                  | **Included in Backend API** |
+| **Auth & Accounts Service** | Signup (admin/shopper), login, logout, JWT, session recording, role checks            | .NET 8                        | Included                    |
+| **Catalog Service**         | Products/Categories CRUD, list/detail, category filters, product states               | .NET 8                        | Included                    |
+| **Shopping Service**        | Wishlist CRUD, Cart preview/calculation, coupon application                           | .NET 8                        | Included                    |
+| **Approval Service**        | Approval jobs (create/update/delete for products/categories), superadmin actions      | .NET 8                        | Included                    |
+| **Seed/Sync Service**       | One-shot or scheduled ingest from **FakeStore API** to seed categories/products       | .NET 8 Worker (HostedService) | Included                    |
+| **Infrastructure**          | Repositories (EF Core/Dapper), JWT provider, password hashing, notifications, caching | .NET 8                        | Included                    |
 
-**Runtime (AWS):** API Gateway (HTTP API) → ALB → ECS Fargate; ECR images; MySQL; ElastiCache Redis; SNS/SQS; EventBridge schedules; Secrets Manager; CloudWatch/X-Ray.
+**Runtime (Azure):** Ingress → **Azure Container Apps** (single container app), image from **ACR**, data in **Azure SQL**, optional **Azure Cache for Redis**, metrics/logs in **App Insights**, config/secrets in **Azure Key Vault**.
 
-### Data Model (logical)
+### Branching & CI/CD (summary)
 
-**Entities**: User, Session, Category, Product, Review, WishlistItem, Cart, CartItem, Coupon, ApprovalJob, ExternalImport.
-**Highlights**: Unique `email`/`username`; product `rating_rate` + `rating_count`; inventory (`inv_total`, `inv_available`); approval states (`APPROVED`,`PENDING_CREATE`,`PENDING_DELETE`,`DELETED`); one active cart per user enforced in logic.
+* **Trunk-based**: `main` protected (PRs only, **2 approvals**, required checks).
+* \**CI (feature/* pushes)\*\*: Build, test, SAST/dependency scan, image tagged **by SHA** and pushed to **ACR**, status summary.
+* **CD (merge to main)**: Build & tag (`main-<shortSHA>`), push to ACR, deploy to **Container Apps**, run DB migrations, smoke test, notify (e.g., Teams webhook or GitHub Checks).
 
-**ER (PlantUML)**
+---
+
+## Data Model (logical)
+
+**Entities**: `User`, `Session`, `Category`, `Product`, `Review`, `WishlistItem`, `Cart`, `CartItem`, `Coupon`, `ApprovalJob`, `ExternalImport`.
+
+**Highlights**
+
+* Unique **email** and **username**.
+* Product ratings: `rating_rate` + `rating_count`.
+* Inventory: `inv_total`, `inv_available`.
+* Product/Category states: `APPROVED`, `PENDING_CREATE`, `PENDING_DELETE`, `DELETED`.
+* One active cart per user enforced in logic.
+* JSON payloads stored as `nvarchar(max)` with SQL Server JSON functions.
+
+**ER (PlantUML, SQL Server types)**
 
 ```plantuml
 @startuml
-' ER-style diagram
 hide methods
 skinparam linetype ortho
 skinparam class {
@@ -77,21 +116,21 @@ skinparam class {
 }
 
 class User {
-  +id: uuid [PK]
-  +email: text [UQ]
-  +username: text [UQ]
-  password_hash: text
+  +id: uniqueidentifier [PK]
+  +email: nvarchar(256) [UQ]
+  +username: nvarchar(64) [UQ]
+  password_hash: nvarchar(255)
   role: Role
   status: UserStatus
-  created_at: timestamptz
-  updated_at: timestamptz
+  created_at: datetime2
+  updated_at: datetime2
 }
 
 enum Role {
   SUPERADMIN
-  ADMIN
+  ADMINISTRATOR
   EMPLOYEE
-  CUSTOMER
+  SHOPPER
 }
 
 enum UserStatus {
@@ -101,13 +140,13 @@ enum UserStatus {
 }
 
 class Session {
-  +id: uuid [PK]
-  +user_id: uuid [FK -> User.id]
-  login_at: timestamptz
-  logout_at: timestamptz
-  jwt_id: text
-  ip: inet
-  user_agent: text
+  +id: uniqueidentifier [PK]
+  +user_id: uniqueidentifier [FK -> User.id]
+  login_at: datetime2
+  logout_at: datetime2
+  jwt_id: nvarchar(64)
+  ip: nvarchar(45)
+  user_agent: nvarchar(256)
   status: SessionStatus
 }
 
@@ -118,31 +157,31 @@ enum SessionStatus {
 }
 
 class Category {
-  +id: uuid [PK]
-  name: text [UQ]
+  +id: uniqueidentifier [PK]
+  name: nvarchar(100) [UQ]
   state: ApprovalState
-  created_by: uuid [FK -> User.id]
-  approved_by: uuid [FK -> User.id]?
-  created_at: timestamptz
-  updated_at: timestamptz
+  created_by: uniqueidentifier [FK -> User.id]
+  approved_by: uniqueidentifier [FK -> User.id]?
+  created_at: datetime2
+  updated_at: datetime2
 }
 
 class Product {
-  +id: uuid [PK]
-  title: text
-  description: text
-  price: numeric(10,2)
-  image_url: text
-  category_id: uuid [FK -> Category.id]
-  rating_rate: numeric(3,2)
+  +id: uniqueidentifier [PK]
+  title: nvarchar(200)
+  description: nvarchar(max)
+  price: decimal(10,2)
+  image_url: nvarchar(500)
+  category_id: uniqueidentifier [FK -> Category.id]
+  rating_rate: decimal(3,2)
   rating_count: int
   inv_total: int
   inv_available: int
   state: ApprovalState
-  created_by: uuid [FK -> User.id]
-  approved_by: uuid [FK -> User.id]?
-  created_at: timestamptz
-  updated_at: timestamptz
+  created_by: uniqueidentifier [FK -> User.id]
+  approved_by: uniqueidentifier [FK -> User.id]?
+  created_at: datetime2
+  updated_at: datetime2
 }
 
 enum ApprovalState {
@@ -153,13 +192,13 @@ enum ApprovalState {
 }
 
 class Review {
-  +id: uuid [PK]
-  product_id: uuid [FK -> Product.id]
-  user_id: uuid [FK -> User.id]
-  rating: smallint (1..5)
-  comment: text
+  +id: uniqueidentifier [PK]
+  product_id: uniqueidentifier [FK -> Product.id]
+  user_id: uniqueidentifier [FK -> User.id]
+  rating: smallint  ' 1..5 validated in logic
+  comment: nvarchar(max)
   status: ReviewStatus
-  created_at: timestamptz
+  created_at: datetime2
 }
 
 enum ReviewStatus {
@@ -169,22 +208,22 @@ enum ReviewStatus {
 }
 
 class WishlistItem {
-  +user_id: uuid [FK -> User.id]
-  +product_id: uuid [FK -> Product.id]
-  created_at: timestamptz
+  +user_id: uniqueidentifier [FK -> User.id]
+  +product_id: uniqueidentifier [FK -> Product.id]
+  created_at: datetime2
 }
 
 class Cart {
-  +id: uuid [PK]
-  user_id: uuid [FK -> User.id]
+  +id: uniqueidentifier [PK]
+  user_id: uniqueidentifier [FK -> User.id]
   status: CartStatus
-  coupon_id: uuid [FK -> Coupon.id]?
-  total_before_discount: numeric(12,2)
-  discount_amount: numeric(12,2)
-  shipping_cost: numeric(12,2)
-  final_total: numeric(12,2)
-  created_at: timestamptz
-  updated_at: timestamptz
+  coupon_id: uniqueidentifier [FK -> Coupon.id]?
+  total_before_discount: decimal(12,2)
+  discount_amount: decimal(12,2)
+  shipping_cost: decimal(12,2)
+  final_total: decimal(12,2)
+  created_at: datetime2
+  updated_at: datetime2
 }
 
 enum CartStatus {
@@ -194,59 +233,51 @@ enum CartStatus {
 }
 
 class CartItem {
-  +id: uuid [PK]
-  cart_id: uuid [FK -> Cart.id]
-  product_id: uuid [FK -> Product.id]
+  +id: uniqueidentifier [PK]
+  cart_id: uniqueidentifier [FK -> Cart.id]
+  product_id: uniqueidentifier [FK -> Product.id]
   quantity: int
-  unit_price_snapshot: numeric(10,2)
-  title_snapshot: text
-  image_snapshot: text
-  created_at: timestamptz
+  unit_price_snapshot: decimal(10,2)
+  title_snapshot: nvarchar(200)
+  image_snapshot: nvarchar(500)
+  created_at: datetime2
 }
 
 class Coupon {
-  +id: uuid [PK]
-  code: text [UQ]
+  +id: uniqueidentifier [PK]
+  code: nvarchar(50) [UQ]
   discount_percent: smallint
-  active: boolean
+  active: bit
   valid_from: date?
   valid_to: date?
 }
 
 class ApprovalJob {
-  +id: uuid [PK]
+  +id: uniqueidentifier [PK]
   type: JobType
   operation: JobOperation
-  target_id: uuid?
-  payload: jsonb
+  target_id: uniqueidentifier?
+  payload: nvarchar(max)  ' JSON
   status: JobStatus
-  submitted_by: uuid [FK -> User.id]
-  decided_by: uuid [FK -> User.id]?
-  created_at: timestamptz
-  decided_at: timestamptz?
-  message: text?
+  submitted_by: uniqueidentifier [FK -> User.id]
+  decided_by: uniqueidentifier [FK -> User.id]?
+  created_at: datetime2
+  decided_at: datetime2?
+  message: nvarchar(500)?
 }
 
-enum JobType { 
-    PRODUCT  
-    CATEGORY }
-enum JobOperation { 
-    CREATE 
-    UPDATE 
-    DELETE }
-enum JobStatus { 
-    PENDING  
-    APPROVED  
-    DECLINED }
+enum JobType { PRODUCT, CATEGORY }
+enum JobOperation { CREATE, UPDATE, DELETE }
+enum JobStatus { PENDING, APPROVED, DECLINED }
 
 class ExternalImport {
-  +id: uuid [PK]
-  source: text  ' fakestoreapi
-  entity_type: text  ' product/category
-  external_id: text
-  mapped_product_id: uuid?
-  payload: jsonb
-  imported_at: timestamptz
+  +id: uniqueidentifier [PK]
+  source: nvarchar(50)  ' fakestoreapi
+  entity_type: nvarchar(50)  ' product/category
+  external_id: nvarchar(100)
+  mapped_product_id: uniqueidentifier?
+  payload: nvarchar(max)  ' JSON
+  imported_at: datetime2
 }
 
 ' Relationships
@@ -266,12 +297,21 @@ Product "0..1" -- "0..*" ExternalImport : mapped_product_id
 @enduml
 ```
 
+---
 
+## Integrations & Dependencies
 
-### Integrations & Dependencies
+* **Inbound**: **FakeStore API** via `Seed/Sync Service` (HostedService). Trigger on demand (admin endpoint), or scheduled with **Azure Container Apps Jobs** (documented in ADR).
+* **Outbound**: Notifications (GitHub Checks summary, optional Microsoft Teams webhook) for CI/CD and deployments.
+* **Secrets/Config**: **Azure Key Vault** + managed identity (no long-lived secrets in CI). Connection strings and JWT secrets pulled at startup.
+* **Observability**: **App Insights** traces/metrics; health probes; structured logging (Serilog).
 
-* **Inbound:** FakeStore API (seed/refresh Products & Categories) via Ingestion Service (EventBridge schedule).
-* **Outbound:** Email/Slack webhooks for CI/CD & deployment notifications.
-* **Secrets:** AWS Secrets Manager & SSM Parameter Store. No secrets committed.
+---
+
+## Operational Guardrails
+
+* **Branch protection** on `main`: PRs only, **2 approvals**, required checks (build, tests, SAST).
+* **Docs freshness**: PR template requires updates to Wiki/`CHANGELOG.md`/`docs/decisions/` where applicable; CI enforces basic drift rules.
+* **Migrations**: EF Core migrations executed during CD; roll-forward only in `prod`, rollback playbook documented.
 
 ---
