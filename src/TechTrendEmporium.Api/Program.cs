@@ -7,6 +7,7 @@ using Logica.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+
 // === Resolver connection string (config -> env vars de Azure App Service) ===
 string? connectionString =
     builder.Configuration.GetConnectionString("DefaultConnection")
@@ -34,7 +35,6 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // Repos & Services
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
-
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
