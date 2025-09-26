@@ -1,0 +1,97 @@
+name: cd-on-merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [ main ]
+  workflow_dispatch: {}   # para probarlo manualmente desde Actions
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true
+
+env:
+  RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+  WEBAPP_NAME:   ${{ vars.AZURE_WEBAPP_NAME }}
+
+jobs:
+  deploy:
+    # Solo corre si el PR se cerró por merge (no por cierre simple)
+    if: ${{ github.event.pull_request.merged == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write   # OIDC
+
+    steps:
+      - name: Checkout merged commit (fallback to head if null)
+        uses: actions/checkout@v4
+        with:
+          # Para merge commit (merge normal/squash); si es null, usa el HEAD del PR
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore, Build, Test
+        run: |
+          dotnet restore
+          dotnet build -c Release --no-restore
+          dotnet test -c Release --no-build
+
+      - name: Publish (zip)
+        run: |
+          dotnet publish -c Release -o publish
+          cd publish && zip -r ../app.zip . && cd ..
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure az webapp extension
+        run: az extension add --name webapp --upgrade
+
+      # ❗ SQL Connection String - Comentado porque no tienes la conexión configurada
+      # - name: Set Azure Connection String (optional)
+      #   if: ${{ secrets.SQL_CONNECTION_STRING != '' }}
+      #   run: |
+      #     az webapp config connection-string set \
+      #       --name "$WEBAPP_NAME" \
+      #       --resource-group "$RESOURCE_GROUP" \
+      #       --settings DefaultConnection="${{ secrets.SQL_CONNECTION_STRING }}" \
+      #       --connection-string-type SQLAzure
+
+      - name: Ensure App Settings (Prod + Migrations)
+        run: |
+          az webapp config appsettings set \
+            --name "$WEBAPP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --settings ASPNETCORE_ENVIRONMENT=Production EF__ApplyMigrationsOnStartup=true
+
+      - name: Zip Deploy
+        run: |
+          az webapp deploy \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$WEBAPP_NAME" \
+            --src-path app.zip \
+            --type zip
+
+      - name: Health check
+        run: |
+          HOSTNAME=$(az webapp show -g "$RESOURCE_GROUP" -n "$WEBAPP_NAME" --query defaultHostName -o tsv)
+          curl -fsS --retry 6 --retry-delay 5 "https://$HOSTNAME/health"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### CD on Merge" >> $GITHUB_STEP_SUMMARY
+          echo "- PR: #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit desplegado: ${{ github.event.pull_request.merge_commit_sha || github.event.pull_request.head.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- App: $WEBAPP_NAME / RG: $RESOURCE_GROUP" >> $GITHUB_STEP_SUMMARY
