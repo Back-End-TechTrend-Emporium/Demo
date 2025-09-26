@@ -58,15 +58,15 @@ jobs:
       - name: Ensure az webapp extension
         run: az extension add --name webapp --upgrade
 
-      # ❗ Comenta este paso si ya configuraste la Connection String en el Portal
-      - name: Set Azure Connection String (optional)
-        if: ${{ secrets.SQL_CONNECTION_STRING != '' }}
-        run: |
-          az webapp config connection-string set \
-            --name "$WEBAPP_NAME" \
-            --resource-group "$RESOURCE_GROUP" \
-            --settings DefaultConnection="${{ secrets.SQL_CONNECTION_STRING }}" \
-            --connection-string-type SQLAzure
+      # ❗ SQL Connection String - Comentado porque no tienes la conexión configurada
+      # - name: Set Azure Connection String (optional)
+      #   if: ${{ secrets.SQL_CONNECTION_STRING != '' }}
+      #   run: |
+      #     az webapp config connection-string set \
+      #       --name "$WEBAPP_NAME" \
+      #       --resource-group "$RESOURCE_GROUP" \
+      #       --settings DefaultConnection="${{ secrets.SQL_CONNECTION_STRING }}" \
+      #       --connection-string-type SQLAzure
 
       - name: Ensure App Settings (Prod + Migrations)
         run: |
