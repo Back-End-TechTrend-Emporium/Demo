@@ -1,7 +1,8 @@
 using Data;
 using Data.Entities;
-using Data.Entities.Enums;
+
 using Logica.Interfaces;
+using Logica.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,10 +22,11 @@ namespace Back_End_TechTrend_Emporium.Controllers
         }
 
         [HttpGet("users")]
-        public async Task<ActionResult<IEnumerable<User>>> GetUsers()
+        public async Task<ActionResult<IEnumerable<GetUserResponse>>> GetUsers()
         {
-            // Usando el servicio en lugar del contexto directo
             var users = await _userService.GetAllUsersAsync();
+          
+
             return Ok(users);
         }
 
@@ -64,11 +66,5 @@ namespace Back_End_TechTrend_Emporium.Controllers
         }
     }
 
-    public class CreateUserRequest
-    {
-        public string Email { get; set; } = string.Empty;
-        public string Username { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
-        public Role Role { get; set; } = Role.Shopper;
-    }
+  
 }
