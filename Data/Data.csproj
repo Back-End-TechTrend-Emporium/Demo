@@ -18,4 +18,10 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Context\" />
+    <Folder Include="External\FakeStore\Mappers\" />
+    <Folder Include="External\FakeStore\Models\" />
+  </ItemGroup>
+
 </Project>

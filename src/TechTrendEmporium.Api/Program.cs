@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Data;
+using External.FakeStore;
 using Logica.Interfaces;
 using Logica.Repositories;
 using Logica.Services;
 
 var builder = WebApplication.CreateBuilder(args);
-
 
 // === Resolver connection string (config -> env vars de Azure App Service) ===
 string? connectionString =
@@ -32,9 +32,23 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             maxRetryDelay: TimeSpan.FromSeconds(10),
             errorNumbersToAdd: null)));
 
-// Repos & Services
+// === HttpClient para FakeStore API ===
+builder.Services.AddHttpClient<IFakeStoreApiClient, FakeStoreApiClient>(client =>
+{
+    var fakeStoreConfig = builder.Configuration.GetSection("FakeStoreApi");
+    var baseUrl = fakeStoreConfig["BaseUrl"] ?? "https://fakestoreapi.com";
+    var timeoutSeconds = fakeStoreConfig.GetValue<int>("TimeoutSeconds", 30);
+    
+    client.BaseAddress = new Uri(baseUrl);
+    client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+});
+
+// === Dependency Injection ===
+// Services
+builder.Services.AddScoped<ProductService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
