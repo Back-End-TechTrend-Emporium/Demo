@@ -1,6 +1,7 @@
 using Data.Entities;
 using Data.Entities.Enums;
 using Logica.Interfaces;
+using Logica.Models;
 
 namespace Logica.Services
 {
@@ -13,9 +14,17 @@ namespace Logica.Services
             _userRepository = userRepository;
         }
 
-        public async Task<IEnumerable<User>> GetAllUsersAsync(CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<GetUserResponse>> GetAllUsersAsync(CancellationToken cancellationToken = default)
         {
-            return await _userRepository.GetAllAsync(cancellationToken);
+            var usuario = await _userRepository.GetAllAsync(cancellationToken);
+
+            var model = usuario.Select(u => new GetUserResponse
+            {
+                Id = u.Id,
+                Email = u.Email,
+                Username = u.Username,
+            }).ToList();
+            return model;
         }
 
         public async Task<User> CreateUserAsync(string email, string username, string password, Role role, CancellationToken cancellationToken = default)
