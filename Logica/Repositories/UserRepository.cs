@@ -48,5 +48,38 @@ namespace Logica.Repositories
             return await _context.Users
                 .AnyAsync(u => u.Username.ToLower() == username.ToLower(), cancellationToken);
         }
+        public async Task<Session> CreateSessionAsync(Session session, CancellationToken cancellationToken = default)
+        {
+            _context.Sessions.Add(session);
+            await _context.SaveChangesAsync(cancellationToken);
+            return session;
+        }
+
+        public async Task<Session?> GetLastActiveSessionAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Sessions
+                .Where(s => s.UserId == userId && s.Status == SessionStatus.Active) // <-- Cambia la lógica aquí
+                .OrderByDescending(s => s.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+        public async Task<Session?> GetActiveSessionByJtiAsync(string tokenJti, CancellationToken cancellationToken = default)
+        {
+            // Aquí asumimos que guardarás el JTI hasheado, pero para la búsqueda necesitamos el JTI original.
+            // Por simplicidad en este paso, buscaremos directamente. Si lo hasheas, necesitarías hashear el JTI entrante
+            // antes de comparar. Por ahora lo dejamos así para que funcione.
+            return await _context.Sessions
+                .FirstOrDefaultAsync(s => s.TokenJtiHash == tokenJti && s.Status == SessionStatus.Active, cancellationToken);
+        }
+        public async Task UpdateUserAsync(User user, CancellationToken cancellationToken = default)
+        {
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task UpdateSessionAsync(Session session, CancellationToken cancellationToken = default)
+        {
+            _context.Sessions.Update(session);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
     }
 }

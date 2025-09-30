@@ -4,6 +4,7 @@ namespace Data.Entities.Enums
     {
         Admin = 0,
         Employee = 1,
-        Shopper = 2
+        Shopper = 2,
+        SuperAdmin = 3
     }
 }
