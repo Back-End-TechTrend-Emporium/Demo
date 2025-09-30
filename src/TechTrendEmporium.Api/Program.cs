@@ -43,17 +43,21 @@ builder.Services.AddHttpClient<IFakeStoreApiClient, FakeStoreApiClient>(client =
     client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 });
 
-// === Dependency Injection ===
-// Services
-builder.Services.AddScoped<ProductService>();
+// === Dependency Injection con Decorator Pattern ===
+// Servicios base
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
+    
+// Decorator: Registrar el servicio con persistencia
+builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "TechTrendEmporium.Api", Version = "v1" });
+    // Add any additional Swagger configuration here
 });
 
 var app = builder.Build();
@@ -82,6 +86,43 @@ if (builder.Configuration.GetValue<bool>("EF:ApplyMigrationsOnStartup"))
             logger.LogCritical("Application stopped due to migration failure in Production");
             throw;
         }
+    }
+}
+
+// === Ensure system user exists ===
+if (builder.Configuration.GetValue<bool>("EnsureSystemUser", true))
+{
+    using var scope = app.Services.CreateScope();
+    try
+    {
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        
+        var systemUserId = new Guid("00000000-0000-0000-0000-000000000001");
+        var systemUser = await context.Users.FindAsync(systemUserId);
+        
+        if (systemUser == null)
+        {
+            systemUser = new Data.Entities.User
+            {
+                Id = systemUserId,
+                Email = "system@techtrendemporium.com",
+                Username = "system",
+                PasswordHash = "SYSTEM_ACCOUNT_NOT_FOR_LOGIN",
+                Role = Data.Entities.Enums.Role.Admin,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+            
+            context.Users.Add(systemUser);
+            await context.SaveChangesAsync();
+            logger.LogInformation("System user created successfully");
+        }
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while ensuring system user exists");
     }
 }
 

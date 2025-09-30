@@ -20,6 +20,7 @@ namespace Logica.Repositories
             return await _context.Products
                 .Include(p => p.Category)
                 .Include(p => p.Creator)
+                .Include(p => p.Approver)
                 .AsNoTracking()
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync();
@@ -30,6 +31,7 @@ namespace Logica.Repositories
             return await _context.Products
                 .Include(p => p.Category)
                 .Include(p => p.Creator)
+                .Include(p => p.Approver)
                 .Where(p => p.State == state)
                 .AsNoTracking()
                 .OrderByDescending(p => p.CreatedAt)
@@ -41,7 +43,42 @@ namespace Logica.Repositories
             return await _context.Products
                 .Include(p => p.Category)
                 .Include(p => p.Creator)
+                .Include(p => p.Approver)
+                .Include(p => p.Reviews)
                 .FirstOrDefaultAsync(p => p.Id == id);
+        }
+
+        public async Task<Product> CreateAsync(Product product)
+        {
+            _context.Products.Add(product);
+            await _context.SaveChangesAsync();
+            return await GetByIdAsync(product.Id) ?? product;
+        }
+
+        public async Task<Product> UpdateAsync(Product product)
+        {
+            product.UpdatedAt = DateTime.UtcNow;
+            _context.Products.Update(product);
+            await _context.SaveChangesAsync();
+            return await GetByIdAsync(product.Id) ?? product;
+        }
+
+        public async Task<bool> DeleteAsync(Guid id)
+        {
+            var product = await _context.Products.FindAsync(id);
+            if (product == null) return false;
+
+            // Soft delete - cambiar estado a eliminado
+            product.State = ApprovalState.Deleted;
+            product.UpdatedAt = DateTime.UtcNow;
+            _context.Products.Update(product);
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> ExistsAsync(Guid id)
+        {
+            return await _context.Products.AnyAsync(p => p.Id == id);
         }
 
         public async Task<Product?> GetByExternalIdAsync(string externalId, ExternalSource source)
@@ -56,41 +93,6 @@ namespace Logica.Repositories
             return await GetByIdAsync(mapping.InternalId);
         }
 
-        public async Task<IEnumerable<Product>> GetByCategoryIdAsync(Guid categoryId)
-        {
-            return await _context.Products
-                .Include(p => p.Category)
-                .Where(p => p.CategoryId == categoryId)
-                .AsNoTracking()
-                .ToListAsync();
-        }
-
-        public async Task<Product> CreateAsync(Product product)
-        {
-            _context.Products.Add(product);
-            await _context.SaveChangesAsync();
-            return product;
-        }
-
-        public async Task<Product> UpdateAsync(Product product)
-        {
-            product.UpdatedAt = DateTime.UtcNow;
-            _context.Products.Update(product);
-            await _context.SaveChangesAsync();
-            return product;
-        }
-
-        public async Task<bool> DeleteAsync(Guid id)
-        {
-            var product = await _context.Products.FindAsync(id);
-            if (product == null) return false;
-
-            product.State = ApprovalState.Deleted;
-            product.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-            return true;
-        }
-
         public async Task<bool> ExternalIdExistsAsync(string externalId, ExternalSource source)
         {
             return await _context.ExternalMappings.AnyAsync(em => 
@@ -99,9 +101,38 @@ namespace Logica.Repositories
                 em.SourceType == "PRODUCT");
         }
 
+        public async Task<IEnumerable<Product>> GetByCategoryIdAsync(Guid categoryId)
+        {
+            return await _context.Products
+                .Include(p => p.Category)
+                .Include(p => p.Creator)
+                .Where(p => p.CategoryId == categoryId)
+                .AsNoTracking()
+                .OrderByDescending(p => p.CreatedAt)
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<Product>> SearchAsync(string searchTerm)
+        {
+            return await _context.Products
+                .Include(p => p.Category)
+                .Include(p => p.Creator)
+                .Where(p => p.Title.Contains(searchTerm) || 
+                           p.Description!.Contains(searchTerm) ||
+                           p.Category.Name.Contains(searchTerm))
+                .AsNoTracking()
+                .OrderByDescending(p => p.CreatedAt)
+                .ToListAsync();
+        }
+
         public async Task<int> GetCountAsync()
         {
             return await _context.Products.CountAsync();
+        }
+
+        public async Task<int> GetCountByStateAsync(ApprovalState state)
+        {
+            return await _context.Products.CountAsync(p => p.State == state);
         }
     }
 }
