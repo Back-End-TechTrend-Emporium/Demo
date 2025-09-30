@@ -1,12 +1,21 @@
 /*
 using Back_End_TechTrend_Emporium.Abstractions;
 using Back_End_TechTrend_Emporium.Models;
+
+using Microsoft.AspNetCore.Authorization;       // <- necesario para [Authorize]
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;             // <- ILogger<>
+
+using System;                                   // Guid
+using System.Collections.Generic;               // Dictionary<>
+using System.Threading;                         // CancellationToken
+using System.Threading.Tasks;                   // Task<>
 
 namespace Back_End_TechTrend_Emporium.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class TodoController : ControllerBase
     {
         private readonly ITodoRepository _todoRepository;

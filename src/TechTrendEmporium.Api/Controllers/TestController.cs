@@ -4,11 +4,13 @@ using Data.Entities.Enums;
 using Logica.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Back_End_TechTrend_Emporium.Controllers
 {
-    [ApiController]
-    [Route("api/[controller]")]
+        [ApiController]
+        [Route("api/[controller]")]
+        [Authorize]
     public class TestController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -33,7 +35,7 @@ namespace Back_End_TechTrend_Emporium.Controllers
         {
             try
             {
-                // Usando el servicio con validaciones automáticas
+                // Usando el servicio con validaciones automï¿½ticas
                 var user = await _userService.CreateUserAsync(
                     request.Email,
                     request.Username,

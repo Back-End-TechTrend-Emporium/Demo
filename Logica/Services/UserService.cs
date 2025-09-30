@@ -27,11 +27,18 @@ namespace Logica.Services
             if (await _userRepository.UsernameExistsAsync(username, cancellationToken))
                 throw new InvalidOperationException("Username already exists");
 
+            // Validar que el rol sea employee (para registro desde admin)
+            if (role != Role.Employee)
+                throw new InvalidOperationException("Role must be 'employee'.");
+
+            // Hashear la contraseña
+            var passwordHash = BCrypt.Net.BCrypt.HashPassword(password);
+
             var user = new User
             {
                 Email = email.ToLower(),
                 Username = username.ToLower(),
-                PasswordHash = password, // Por ahora sin hash para pruebas
+                PasswordHash = passwordHash,
                 Role = role,
                 IsActive = true
             };
