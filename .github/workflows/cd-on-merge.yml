@@ -1,7 +1,10 @@
 name: cd-on-merge
 
 on:
-  workflow_dispatch: {}   # Solo manualmente en Actions
+  pull_request:
+    types: [closed]
+    branches: [ main ]
+  workflow_dispatch: {}   # para probarlo manualmente desde Actions
 
 concurrency:
   group: deploy-main
@@ -13,6 +16,8 @@ env:
 
 jobs:
   deploy:
+    # Solo corre si el PR se cerró por merge (no por cierre simple)
+    if: ${{ github.event.pull_request.merged == true }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -20,10 +25,12 @@ jobs:
       id-token: write   # OIDC
 
     steps:
-      - name: Checkout branch
+      - name: Checkout merged commit (fallback to head if null)
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          # Para merge commit (merge normal/squash); si es null, usa el HEAD del PR
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.event.pull_request.head.sha }}
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -84,8 +91,7 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          echo "### CD Manual" >> $GITHUB_STEP_SUMMARY
-          echo "- Evento: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Rama: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Commit desplegado: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "### CD on Merge" >> $GITHUB_STEP_SUMMARY
+          echo "- PR: #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit desplegado: ${{ github.event.pull_request.merge_commit_sha || github.event.pull_request.head.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "- App: $WEBAPP_NAME / RG: $RESOURCE_GROUP" >> $GITHUB_STEP_SUMMARY
