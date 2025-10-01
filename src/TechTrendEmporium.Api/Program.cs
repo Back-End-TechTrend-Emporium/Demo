@@ -8,19 +8,51 @@ using Logica.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// === Resolver connection string (config -> env vars de Azure App Service) ===
-string? connectionString =
-    builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")          // si el pipeline la setea así
-    ?? Environment.GetEnvironmentVariable("SQLCONNSTR_DefaultConnection")                 // App Service (type=SQLAzure)
-    ?? Environment.GetEnvironmentVariable("CUSTOMCONNSTR_DefaultConnection");             // App Service (custom)
+// === CARGAR USER SECRETS EN PRODUCTION PARA TESTING LOCAL ===
+if (builder.Environment.IsProduction())
+{
+    builder.Configuration.AddUserSecrets<Program>();
+    Console.WriteLine("[DEBUG] User Secrets loaded for Production environment");
+}
+
+// === Resolver connection string según el entorno ===
+string? connectionString;
+
+if (builder.Environment.IsDevelopment())
+{
+    // En desarrollo, usar la conexión local del appsettings.Development.json
+    connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    Console.WriteLine($"[DEVELOPMENT] Using local database: {connectionString}");
+}
+else
+{
+    // En producción, usar la conexión de Azure desde User Secrets o variables de entorno
+    connectionString = 
+        builder.Configuration["ConnectionStrings:ProductionConnection"] // User Secrets - acceso directo
+        ?? builder.Configuration.GetConnectionString("ProductionConnection") // User Secrets - método tradicional
+        ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+        ?? Environment.GetEnvironmentVariable("SQLCONNSTR_DefaultConnection")
+        ?? Environment.GetEnvironmentVariable("CUSTOMCONNSTR_DefaultConnection");
+    
+    Console.WriteLine($"[PRODUCTION] Using Azure database");
+    Console.WriteLine($"[DEBUG] Connection string found: {!string.IsNullOrEmpty(connectionString)}");
+}
 
 if (string.IsNullOrWhiteSpace(connectionString))
 {
+    // Agregar debugging para ver qué configuración está disponible
+    Console.WriteLine("[DEBUG] Available configuration keys:");
+    foreach (var item in builder.Configuration.AsEnumerable())
+    {
+        if (item.Key.Contains("Connection", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"  {item.Key} = {(item.Value?.Length > 0 ? "[SET]" : "[EMPTY]")}");
+        }
+    }
+    
     throw new InvalidOperationException(
-        "No se encontró la cadena de conexión 'DefaultConnection'. " +
-        "Define la Connection String en Azure App Service (Configuration > Connection strings) " +
-        "o inyecta la variable desde el pipeline.");
+        "No se encontró la cadena de conexión. " +
+        "Define la Connection String apropiada para el entorno actual.");
 }
 
 // === EF Core (con reintentos) ===
@@ -62,7 +94,7 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// === Migraciones condicionales ===
+// === Crear/verificar base de datos ===
 if (builder.Configuration.GetValue<bool>("EF:ApplyMigrationsOnStartup"))
 {
     using var scope = app.Services.CreateScope();
@@ -71,20 +103,36 @@ if (builder.Configuration.GetValue<bool>("EF:ApplyMigrationsOnStartup"))
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
-        logger.LogInformation("Starting database migration...");
-        await context.Database.MigrateAsync();
-        logger.LogInformation("Database migrations applied successfully");
+        logger.LogInformation("Setting up database...");
+        
+        // Para desarrollo, usar EnsureCreated es más simple
+        if (builder.Environment.IsDevelopment())
+        {
+            logger.LogInformation("Creating/verifying development database...");
+            await context.Database.EnsureCreatedAsync();
+            logger.LogInformation("Development database created/verified successfully");
+        }
+        else
+        {
+            // En producción, usar migraciones
+            logger.LogInformation("Applying database migrations...");
+            await context.Database.MigrateAsync();
+            logger.LogInformation("Database migrations applied successfully");
+        }
     }
     catch (Exception ex)
     {
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while migrating the database");
+        logger.LogError(ex, "An error occurred while setting up the database");
 
-        // En producción, si quieres que la app caiga al fallar la migración, deja el throw.
         if (app.Environment.IsProduction())
         {
-            logger.LogCritical("Application stopped due to migration failure in Production");
+            logger.LogCritical("Application stopped due to database setup failure in Production");
             throw;
+        }
+        else
+        {
+            logger.LogWarning("Database setup failed in Development. The application will continue but may not function correctly.");
         }
     }
 }
@@ -117,6 +165,10 @@ if (builder.Configuration.GetValue<bool>("EnsureSystemUser", true))
             context.Users.Add(systemUser);
             await context.SaveChangesAsync();
             logger.LogInformation("System user created successfully");
+        }
+        else
+        {
+            logger.LogInformation("System user already exists");
         }
     }
     catch (Exception ex)
