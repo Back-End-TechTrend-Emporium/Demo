@@ -26,16 +26,26 @@ if (builder.Environment.IsDevelopment())
 }
 else
 {
-    // En producción, usar la conexión de Azure desde User Secrets o variables de entorno
+    // En producción, usar la conexión de Azure desde múltiples fuentes
     connectionString = 
-        builder.Configuration["ConnectionStrings:ProductionConnection"] // User Secrets - acceso directo
-        ?? builder.Configuration.GetConnectionString("ProductionConnection") // User Secrets - método tradicional
+        builder.Configuration["ConnectionStrings:ProductionConnection"] // User Secrets (local testing)
+        ?? builder.Configuration.GetConnectionString("ProductionConnection") // User Secrets (local testing)
+        ?? builder.Configuration.GetConnectionString("DefaultConnection") // Azure App Service Connection String
+        ?? Environment.GetEnvironmentVariable("ConnectionStrings__ProductionConnection")
         ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+        ?? Environment.GetEnvironmentVariable("SQLCONNSTR_ProductionConnection")
         ?? Environment.GetEnvironmentVariable("SQLCONNSTR_DefaultConnection")
         ?? Environment.GetEnvironmentVariable("CUSTOMCONNSTR_DefaultConnection");
     
     Console.WriteLine($"[PRODUCTION] Using Azure database");
     Console.WriteLine($"[DEBUG] Connection string found: {!string.IsNullOrEmpty(connectionString)}");
+    
+    // Debug adicional para Azure App Service
+    if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME")))
+    {
+        Console.WriteLine($"[DEBUG] Running in Azure App Service: {Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME")}");
+        Console.WriteLine($"[DEBUG] DefaultConnection available: {!string.IsNullOrEmpty(builder.Configuration.GetConnectionString("DefaultConnection"))}");
+    }
 }
 
 if (string.IsNullOrWhiteSpace(connectionString))
