@@ -8,6 +8,7 @@ using Data.Entities;
 using Data.Entities.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Logica.Models.Products;
 
 namespace Logica.Services
 {
@@ -322,6 +323,20 @@ namespace Logica.Services
             return products.Select(p => p.ToProductDto());
         }
 
+        public async Task<IEnumerable<ProductSummaryDto>> GetProductsByUserIdAsync(Guid userId)
+        {
+            try
+            {
+                var products = await _productRepository.GetByCreatorIdAsync(userId);
+                return products.Select(ProductMapper.ToSummaryDto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting products for user {UserId}", userId);
+                throw;
+            }
+        }
+
         #endregion
 
         #region Helper Methods
@@ -369,7 +384,7 @@ namespace Logica.Services
         {
             return new ProductDto
             {
-                Id = fakeStoreProduct.Id,
+                Id = Guid.NewGuid(), // Generar GUID único para productos de FakeStore
                 Title = fakeStoreProduct.Title,
                 Price = fakeStoreProduct.Price,
                 Description = fakeStoreProduct.Description,

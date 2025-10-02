@@ -19,11 +19,7 @@ namespace TechTrendEmporium.Api.Controllers
             _logger = logger;
         }
 
-        #region CRUD Operations (Local Database)
-
-        /// <summary>
-        /// Obtiene todas las categorías de la base de datos local
-        /// </summary>
+       // CRUD Operations (Local Database)
         [HttpGet]
         public async Task<ActionResult<IEnumerable<CategoryDto>>> GetAllCategories()
         {
@@ -39,9 +35,7 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene solo las categorías aprobadas de la base de datos local
-        /// </summary>
+       
         [HttpGet("approved")]
         public async Task<ActionResult<IEnumerable<CategoryDto>>> GetApprovedCategories()
         {
@@ -57,12 +51,12 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene una categoría específica por ID de la base de datos local
-        /// </summary>
+        
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<CategoryDto>> GetCategory(Guid id)
         {
+
+
             try
             {
                 var category = await _categoryService.GetCategoryByIdAsync(id);
@@ -81,9 +75,7 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene una categoría específica por slug de la base de datos local
-        /// </summary>
+        
         [HttpGet("slug/{slug}")]
         public async Task<ActionResult<CategoryDto>> GetCategoryBySlug(string slug)
         {
@@ -105,9 +97,6 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Crea una nueva categoría en la base de datos local
-        /// </summary>
         [HttpPost]
         public async Task<ActionResult<CategoryDto>> CreateCategory(CategoryCreateDto categoryDto)
         {
@@ -131,9 +120,7 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Actualiza una categoría existente en la base de datos local
-        /// </summary>
+       
         [HttpPut("{id:guid}")]
         public async Task<ActionResult<CategoryDto>> UpdateCategory(Guid id, CategoryUpdateDto categoryDto)
         {
@@ -160,9 +147,7 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Elimina una categoría de la base de datos local (hard delete)
-        /// </summary>
+        
         [HttpDelete("{id:guid}")]
         public async Task<ActionResult> DeleteCategory(Guid id)
         {
@@ -189,9 +174,7 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Busca categorías en la base de datos local
-        /// </summary>
+      
         [HttpGet("search")]
         public async Task<ActionResult<IEnumerable<CategoryDto>>> SearchCategories([FromQuery] string searchTerm)
         {
@@ -212,13 +195,11 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        #endregion
+      
 
-        #region FakeStore API Operations
+      
 
-        /// <summary>
-        /// Obtiene categorías desde FakeStore API
-        /// </summary>
+       
         [HttpGet("fakestore")]
         public async Task<ActionResult<IEnumerable<string>>> GetCategoriesFromFakeStore()
         {
@@ -234,13 +215,11 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        #endregion
+     
 
-        #region Sync Operations
+        // Sync Operations
 
-        /// <summary>
-        /// Sincroniza categorías desde FakeStore API a la base de datos local
-        /// </summary>
+    
         [HttpPost("sync-from-fakestore")]
         public async Task<ActionResult<object>> SyncCategoriesFromFakeStore()
         {
@@ -263,13 +242,11 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        #endregion
+        
 
-        #region Approval Operations
+        // Approval Operations
 
-        /// <summary>
-        /// Obtiene categorías pendientes de aprobación
-        /// </summary>
+      
         [HttpGet("pending-approval")]
         public async Task<ActionResult<IEnumerable<CategoryDto>>> GetPendingApproval()
         {
@@ -285,9 +262,7 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Aprueba una categoría
-        /// </summary>
+       
         [HttpPost("{id:guid}/approve")]
         public async Task<ActionResult> ApproveCategory(Guid id)
         {
@@ -315,9 +290,6 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Rechaza una categoría
-        /// </summary>
         [HttpPost("{id:guid}/reject")]
         public async Task<ActionResult> RejectCategory(Guid id)
         {
@@ -339,6 +311,18 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        #endregion
+       
+
+        
+
+      
+        private static Guid ConvertIntToGuid(int id)
+        {
+            var bytes = new byte[16];
+            var idBytes = BitConverter.GetBytes(id);
+            Array.Copy(idBytes, 0, bytes, 0, 4);
+            return new Guid(bytes);
+        }
+
     }
 }

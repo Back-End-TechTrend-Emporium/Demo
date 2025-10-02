@@ -1,6 +1,6 @@
-using Logica.Models;
 using Logica.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Logica.Models.Products;
 
 namespace TechTrendEmporium.Api.Controllers
 {
@@ -19,15 +19,38 @@ namespace TechTrendEmporium.Api.Controllers
             _logger = logger;
         }
 
-        #region CRUD Operations (Local Database)
 
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<ProductDto>>> GetAllProducts()
+        [HttpGet("products")]
+        public async Task<ActionResult<IEnumerable<ProductSummaryDto>>> GetMyProducts()
+        {
+            try
+            {
+                var userId = GetCurrentUserId(); // Del JWT cuando esté implementado
+                var products = await _productService.GetProductsByUserIdAsync(userId);
+                return Ok(products);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al obtener productos del usuario");
+                return StatusCode(500, "Error interno del servidor");
+            }
+        }
+
+
+        [HttpGet("Allproducts")]
+        public async Task<ActionResult<IEnumerable<ProductSummaryDto>>> GetAllProducts()
         {
             try
             {
                 var products = await _productService.GetAllProductsAsync();
-                return Ok(products);
+                var summaryProducts = products.Select(p => new ProductSummaryDto
+                {
+                    Id = p.Id,
+                    Title = p.Title,
+                    Price = p.Price,
+                    Category = p.Category
+                });
+                return Ok(summaryProducts);
             }
             catch (Exception ex)
             {
@@ -51,21 +74,19 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene un producto específico por ID de la base de datos local
-        /// </summary>
+
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<ProductDto>> GetProduct(Guid id)
         {
             try
             {
                 var product = await _productService.GetProductByIdAsync(id);
-                
+
                 if (product == null)
                 {
                     return NotFound($"Producto con ID {id} no encontrado");
                 }
-                
+
                 return Ok(product);
             }
             catch (Exception ex)
@@ -75,33 +96,42 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Crea un nuevo producto en la base de datos local
-        /// </summary>
+
         [HttpPost]
-        public async Task<ActionResult<ProductDto>> CreateProduct(ProductCreateDto productDto)
+        public async Task<ActionResult<ProductCreateResponseDto>> CreateProduct(ProductCreateDto productDto)
         {
             try
             {
-                // En un sistema real, obtener el userId del token JWT
                 var createdBy = GetCurrentUserId();
-                
+
                 var product = await _productService.CreateProductAsync(productDto, createdBy);
-                
-                return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product);
+
+                var response = new ProductCreateResponseDto
+                {
+                    ProductId = product.Id,
+                    Message = "Successful"
+                };
+
+                return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, response);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al crear producto");
-                return StatusCode(500, "Error interno del servidor");
+
+                var errorResponse = new ProductCreateResponseDto
+                {
+                    ProductId = Guid.Empty,
+                    Message = "Failure"
+                };
+
+                return StatusCode(500, errorResponse);
             }
         }
 
-        
+
         [HttpPut("{id:guid}")]
-        public async Task<ActionResult<ProductDto>> UpdateProduct(Guid id, ProductUpdateDto productDto)
+        public async Task<ActionResult<ProductResponseDto>> UpdateProduct(Guid id, ProductUpdateDto productDto)
         {
-            // se ingresa como un int de id y pasa a ser guid en el servicio
             try
             {
                 var product = await _productService.UpdateProductAsync(id, productDto);
@@ -111,7 +141,12 @@ namespace TechTrendEmporium.Api.Controllers
                     return NotFound($"Producto con ID {id} no encontrado");
                 }
 
-                return Ok(product);
+                var response = new ProductResponseDto
+                {
+                    Message = "Updated successfuly"
+                };
+
+                return Ok(response);
             }
             catch (Exception ex)
             {
@@ -120,22 +155,24 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Elimina un producto de la base de datos local (soft delete)
-        /// </summary>
+
         [HttpDelete("{id:guid}")]
-        public async Task<ActionResult> DeleteProduct(Guid id)
+        public async Task<ActionResult<ProductResponseDto>> DeleteProduct(Guid id)
         {
             try
             {
                 var success = await _productService.DeleteProductAsync(id);
-                
+
                 if (!success)
                 {
                     return NotFound($"Producto con ID {id} no encontrado");
                 }
-                
-                return NoContent();
+
+                var response = new ProductResponseDto
+                {
+                    Message = "Deleted successfuly "
+                };
+                return Ok(response);
             }
             catch (Exception ex)
             {
@@ -144,9 +181,7 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Busca productos en la base de datos local
-        /// </summary>
+
         [HttpGet("search")]
         public async Task<ActionResult<IEnumerable<ProductDto>>> SearchProducts([FromQuery] string searchTerm)
         {
@@ -167,9 +202,9 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        #endregion
 
-        #region FakeStore API Operations
+
+        // uso de la fake store
 
 
         [HttpGet("fakestore")]
@@ -187,21 +222,19 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene un producto específico desde FakeStore API
-        /// </summary>
+
         [HttpGet("fakestore/{id:int}")]
         public async Task<ActionResult<ProductDto>> GetProductFromFakeStore(int id)
         {
             try
             {
                 var product = await _productService.GetProductFromFakeStoreAsync(id);
-                
+
                 if (product == null)
                 {
                     return NotFound($"Producto con ID {id} no encontrado en FakeStore");
                 }
-                
+
                 return Ok(product);
             }
             catch (Exception ex)
@@ -211,9 +244,6 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene categorías desde FakeStore API
-        /// </summary>
         [HttpGet("fakestore/categories")]
         public async Task<ActionResult<IEnumerable<string>>> GetCategoriesFromFakeStore()
         {
@@ -229,9 +259,6 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene productos por categoría desde FakeStore API
-        /// </summary>
         [HttpGet("fakestore/category/{category}")]
         public async Task<ActionResult<IEnumerable<ProductDto>>> GetProductsByCategoryFromFakeStore(string category)
         {
@@ -247,11 +274,11 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        #endregion
 
-        #region Sync Operations
 
-       
+        // Sync Operations
+
+
         [HttpPost("sync-from-fakestore")]
         public async Task<ActionResult<object>> SyncAllFromFakeStore()
         {
@@ -259,7 +286,7 @@ namespace TechTrendEmporium.Api.Controllers
             {
                 var createdBy = GetCurrentUserId();
                 var importedCount = await _productService.SyncAllFromFakeStoreAsync(createdBy);
-                
+
                 return Ok(new
                 {
                     Message = "Sincronización completada exitosamente",
@@ -274,7 +301,7 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        
+
         [HttpPost("import-from-fakestore/{fakeStoreId:int}")]
         public async Task<ActionResult<ProductDto>> ImportProductFromFakeStore(int fakeStoreId)
         {
@@ -282,12 +309,12 @@ namespace TechTrendEmporium.Api.Controllers
             {
                 var createdBy = GetCurrentUserId();
                 var product = await _productService.ImportProductFromFakeStoreAsync(fakeStoreId, createdBy);
-                
+
                 if (product == null)
                 {
                     return NotFound($"Producto con ID {fakeStoreId} no encontrado en FakeStore");
                 }
-                
+
                 return Ok(product);
             }
             catch (Exception ex)
@@ -297,13 +324,11 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        #endregion
 
-        #region Approval Operations
 
-        /// <summary>
-        /// Obtiene productos pendientes de aprobación
-        /// </summary>
+        // Approval Operations
+
+
         [HttpGet("pending-approval")]
         public async Task<ActionResult<IEnumerable<ProductDto>>> GetPendingApproval()
         {
@@ -319,9 +344,7 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Aprueba un producto
-        /// </summary>
+
         [HttpPost("{id:guid}/approve")]
         public async Task<ActionResult> ApproveProduct(Guid id)
         {
@@ -329,12 +352,12 @@ namespace TechTrendEmporium.Api.Controllers
             {
                 var approvedBy = GetCurrentUserId();
                 var success = await _productService.ApproveProductAsync(id, approvedBy);
-                
+
                 if (!success)
                 {
                     return NotFound($"Producto con ID {id} no encontrado");
                 }
-                
+
                 return Ok(new { Message = "Producto aprobado exitosamente" });
             }
             catch (Exception ex)
@@ -344,21 +367,19 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Rechaza un producto
-        /// </summary>
+
         [HttpPost("{id:guid}/reject")]
         public async Task<ActionResult> RejectProduct(Guid id)
         {
             try
             {
                 var success = await _productService.RejectProductAsync(id);
-                
+
                 if (!success)
                 {
                     return NotFound($"Producto con ID {id} no encontrado");
                 }
-                
+
                 return Ok(new { Message = "Producto rechazado exitosamente" });
             }
             catch (Exception ex)
@@ -368,6 +389,25 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        #endregion
+    
+
+    // Utilities
+
+    
+        private static Guid ConvertIntToGuid(int id)
+        {
+            var bytes = new byte[16];
+            var idBytes = BitConverter.GetBytes(id);
+            Array.Copy(idBytes, 0, bytes, 0, 4);
+            return new Guid(bytes);
+        }
+
+        private static int ConvertGuidToInt(Guid guid)
+        {
+            var bytes = guid.ToByteArray();
+            return BitConverter.ToInt32(bytes, 0);
+        }
+
+
     }
 }

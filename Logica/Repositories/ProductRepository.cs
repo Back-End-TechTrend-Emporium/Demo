@@ -38,6 +38,18 @@ namespace Logica.Repositories
                 .ToListAsync();
         }
 
+        public async Task<IEnumerable<Product>> GetByCreatorIdAsync(Guid userId)
+        {
+            return await _context.Products
+                .Include(p => p.Category)
+                .Include(p => p.Creator)
+                .Include(p => p.Approver)
+                .Where(p => p.CreatedBy == userId)
+                .AsNoTracking()
+                .OrderByDescending(p => p.CreatedAt)
+                .ToListAsync();
+        }
+
         public async Task<Product?> GetByIdAsync(Guid id)
         {
             return await _context.Products

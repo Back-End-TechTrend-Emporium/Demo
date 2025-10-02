@@ -1,5 +1,6 @@
-using Data.Entities;
+﻿using Data.Entities;
 using Logica.Models;
+using Logica.Models.Products;
 
 namespace Logica.Mappers
 {
@@ -10,9 +11,9 @@ namespace Logica.Mappers
     {
         public static ProductDto ToProductDto(this Product product)
         {
-            return new ProductDto
+            return new ProductDto   
             {
-                Id = (int)product.Id.GetHashCode(), // Temporal para compatibilidad con External ID
+                Id = product.Id, // ✅ Usar directamente el GUID
                 Title = product.Title,
                 Price = product.Price,
                 Description = product.Description ?? string.Empty,
@@ -53,6 +54,20 @@ namespace Logica.Mappers
             if (!string.IsNullOrEmpty(updateDto.Image))
                 product.ImageUrl = updateDto.Image;
             
+            // Handle Rating updates
+            if (updateDto.Rating != null)
+            {
+                product.RatingAverage = (decimal)updateDto.Rating.Rate;
+                product.RatingCount = updateDto.Rating.Count;
+            }
+            
+            // Handle Inventory updates
+            if (updateDto.Inventory != null)
+            {
+                product.InventoryTotal = updateDto.Inventory.Total;
+                product.InventoryAvailable = updateDto.Inventory.Available;
+            }
+            
             product.UpdatedAt = DateTime.UtcNow;
         }
 
@@ -78,6 +93,17 @@ namespace Logica.Mappers
                     ProductImage = ci.ImageUrlSnapshot,
                     TotalPrice = ci.UnitPriceSnapshot * ci.Quantity
                 }).ToList() ?? new List<CartItemDto>()
+            };
+        }
+
+        public static ProductSummaryDto ToSummaryDto(Product product)
+        {
+            return new ProductSummaryDto
+            {
+                Id = product.Id,
+                Title = product.Title,
+                Price = product.Price,
+                Category = product.Category?.Name ?? "Sin categoría"
             };
         }
     }
