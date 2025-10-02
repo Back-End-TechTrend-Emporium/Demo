@@ -26,7 +26,7 @@ namespace Logica.Services
             {
                 new(JwtRegisteredClaimNames.NameId, user.Id.ToString()),
                 new(JwtRegisteredClaimNames.UniqueName, user.Username),
-                new(ClaimTypes.Role, user.Role.ToString())
+                new(ClaimTypes.Role, user.Role.ToString()),
                 new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 

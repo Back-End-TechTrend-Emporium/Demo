@@ -1,5 +1,6 @@
 using Data;
 using Data.Entities;
+using Data.Entities.Enums;
 using Logica.Interfaces;
 using Microsoft.EntityFrameworkCore;
 

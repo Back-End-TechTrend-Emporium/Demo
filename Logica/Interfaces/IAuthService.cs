@@ -8,7 +8,7 @@ namespace Logica.Interfaces
     {
         Task<(AuthResponse? Response, string? Error)> RegisterShopperAsync(ShopperRegisterRequest request);
         Task<(AuthResponse? Response, string? Error)> RegisterByAdminAsync(AdminRegisterRequest request);
-        Task<(AuthResponse? Response, string? Error)> LoginAsync(LoginRequest request);
+        Task<(AuthResponse? Response, string? Error)> LoginAsync(LoginRequest request, string? ipAddress, string? userAgent);
         Task<(bool Success, string? Error)> LogoutAsync(ClaimsPrincipal userPrincipal);
     }
 }
