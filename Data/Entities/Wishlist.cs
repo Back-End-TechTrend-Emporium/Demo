@@ -19,6 +19,6 @@ namespace Data.Entities
         [ForeignKey(nameof(UserId))]
         public User User { get; set; } = null!;
 
-        public ICollection<WishlistItem> Items { get; set; } = new List<WishlistItem>();
+        public ICollection<WishlistItem> WishlistItems { get; set; } = new List<WishlistItem>();
     }
 }

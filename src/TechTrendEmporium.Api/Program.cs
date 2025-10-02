@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Data;
+using External.FakeStore;
 using Logica.Interfaces;
 using Logica.Repositories;
 using Logica.Services;

@@ -31,10 +31,10 @@ namespace Logica.Services
         {
             // Validaciones de negocio
             if (await _userRepository.EmailExistsAsync(email, cancellationToken))
-                throw new InvalidOperationException("Email already exists");
+                throw new InvalidOperationException("El e-mail ya existe");
 
             if (await _userRepository.UsernameExistsAsync(username, cancellationToken))
-                throw new InvalidOperationException("Username already exists");
+                throw new InvalidOperationException("El nombre de usuario ya existe");
 
             var user = new User
             {

@@ -42,6 +42,6 @@ namespace Data.Entities
         [ForeignKey(nameof(AppliedCouponId))]
         public Coupon? AppliedCoupon { get; set; }
 
-        public ICollection<CartItem> Items { get; set; } = new List<CartItem>();
+        public ICollection<CartItem> CartItems { get; set; } = new List<CartItem>();
     }
 }
