@@ -6,7 +6,7 @@ namespace TechTrendEmporium.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class ProductsController : ControllerBase
+    public class ProductsController : BaseController
     {
         private readonly IProductService _productService;
         private readonly ILogger<ProductsController> _logger;
@@ -21,9 +21,6 @@ namespace TechTrendEmporium.Api.Controllers
 
         #region CRUD Operations (Local Database)
 
-        /// <summary>
-        /// Obtiene todos los productos de la base de datos local
-        /// </summary>
         [HttpGet]
         public async Task<ActionResult<IEnumerable<ProductDto>>> GetAllProducts()
         {
@@ -39,9 +36,6 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Obtiene solo los productos aprobados de la base de datos local
-        /// </summary>
         [HttpGet("approved")]
         public async Task<ActionResult<IEnumerable<ProductDto>>> GetApprovedProducts()
         {
@@ -58,7 +52,7 @@ namespace TechTrendEmporium.Api.Controllers
         }
 
         /// <summary>
-        /// Obtiene un producto espec韋ico por ID de la base de datos local
+        /// Obtiene un producto espec铆fico por ID de la base de datos local
         /// </summary>
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<ProductDto>> GetProduct(Guid id)
@@ -103,21 +97,20 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Actualiza un producto existente en la base de datos local
-        /// </summary>
+        
         [HttpPut("{id:guid}")]
         public async Task<ActionResult<ProductDto>> UpdateProduct(Guid id, ProductUpdateDto productDto)
         {
+            // se ingresa como un int de id y pasa a ser guid en el servicio
             try
             {
                 var product = await _productService.UpdateProductAsync(id, productDto);
-                
+
                 if (product == null)
                 {
                     return NotFound($"Producto con ID {id} no encontrado");
                 }
-                
+
                 return Ok(product);
             }
             catch (Exception ex)
@@ -161,7 +154,7 @@ namespace TechTrendEmporium.Api.Controllers
             {
                 if (string.IsNullOrWhiteSpace(searchTerm))
                 {
-                    return BadRequest("El t閞mino de b鷖queda es requerido");
+                    return BadRequest("El t茅rmino de b煤squeda es requerido");
                 }
 
                 var products = await _productService.SearchProductsAsync(searchTerm);
@@ -169,7 +162,7 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error en b鷖queda de productos");
+                _logger.LogError(ex, "Error en b煤squeda de productos");
                 return StatusCode(500, "Error interno del servidor");
             }
         }
@@ -178,9 +171,7 @@ namespace TechTrendEmporium.Api.Controllers
 
         #region FakeStore API Operations
 
-        /// <summary>
-        /// Obtiene productos directamente desde FakeStore API (sin guardar en BD)
-        /// </summary>
+
         [HttpGet("fakestore")]
         public async Task<ActionResult<IEnumerable<ProductDto>>> GetProductsFromFakeStore()
         {
@@ -197,7 +188,7 @@ namespace TechTrendEmporium.Api.Controllers
         }
 
         /// <summary>
-        /// Obtiene un producto espec韋ico desde FakeStore API
+        /// Obtiene un producto espec铆fico desde FakeStore API
         /// </summary>
         [HttpGet("fakestore/{id:int}")]
         public async Task<ActionResult<ProductDto>> GetProductFromFakeStore(int id)
@@ -221,7 +212,7 @@ namespace TechTrendEmporium.Api.Controllers
         }
 
         /// <summary>
-        /// Obtiene categor韆s desde FakeStore API
+        /// Obtiene categor铆as desde FakeStore API
         /// </summary>
         [HttpGet("fakestore/categories")]
         public async Task<ActionResult<IEnumerable<string>>> GetCategoriesFromFakeStore()
@@ -233,13 +224,13 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener categor韆s de FakeStore");
+                _logger.LogError(ex, "Error al obtener categor铆as de FakeStore");
                 return StatusCode(500, "Error interno del servidor");
             }
         }
 
         /// <summary>
-        /// Obtiene productos por categor韆 desde FakeStore API
+        /// Obtiene productos por categor铆a desde FakeStore API
         /// </summary>
         [HttpGet("fakestore/category/{category}")]
         public async Task<ActionResult<IEnumerable<ProductDto>>> GetProductsByCategoryFromFakeStore(string category)
@@ -251,7 +242,7 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener productos de categor韆 {Category} de FakeStore", category);
+                _logger.LogError(ex, "Error al obtener productos de categor铆a {Category} de FakeStore", category);
                 return StatusCode(500, "Error interno del servidor");
             }
         }
@@ -260,9 +251,7 @@ namespace TechTrendEmporium.Api.Controllers
 
         #region Sync Operations
 
-        /// <summary>
-        /// Sincroniza todos los productos desde FakeStore a la base de datos local
-        /// </summary>
+       
         [HttpPost("sync-from-fakestore")]
         public async Task<ActionResult<object>> SyncAllFromFakeStore()
         {
@@ -273,21 +262,19 @@ namespace TechTrendEmporium.Api.Controllers
                 
                 return Ok(new
                 {
-                    Message = "Sincronizaci髇 completada exitosamente",
+                    Message = "Sincronizaci贸n completada exitosamente",
                     ImportedCount = importedCount,
                     Timestamp = DateTime.UtcNow
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error en sincronizaci髇 desde FakeStore");
-                return StatusCode(500, "Error durante la sincronizaci髇");
+                _logger.LogError(ex, "Error en sincronizaci贸n desde FakeStore");
+                return StatusCode(500, "Error durante la sincronizaci贸n");
             }
         }
 
-        /// <summary>
-        /// Importa un producto espec韋ico desde FakeStore a la base de datos local
-        /// </summary>
+        
         [HttpPost("import-from-fakestore/{fakeStoreId:int}")]
         public async Task<ActionResult<ProductDto>> ImportProductFromFakeStore(int fakeStoreId)
         {
@@ -306,7 +293,7 @@ namespace TechTrendEmporium.Api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error importando producto {ProductId} desde FakeStore", fakeStoreId);
-                return StatusCode(500, "Error durante la importaci髇");
+                return StatusCode(500, "Error durante la importaci贸n");
             }
         }
 
@@ -315,7 +302,7 @@ namespace TechTrendEmporium.Api.Controllers
         #region Approval Operations
 
         /// <summary>
-        /// Obtiene productos pendientes de aprobaci髇
+        /// Obtiene productos pendientes de aprobaci贸n
         /// </summary>
         [HttpGet("pending-approval")]
         public async Task<ActionResult<IEnumerable<ProductDto>>> GetPendingApproval()
@@ -327,7 +314,7 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener productos pendientes de aprobaci髇");
+                _logger.LogError(ex, "Error al obtener productos pendientes de aprobaci贸n");
                 return StatusCode(500, "Error interno del servidor");
             }
         }
@@ -379,20 +366,6 @@ namespace TechTrendEmporium.Api.Controllers
                 _logger.LogError(ex, "Error al rechazar producto {ProductId}", id);
                 return StatusCode(500, "Error interno del servidor");
             }
-        }
-
-        #endregion
-
-        #region Helper Methods
-
-        /// <summary>
-        /// Obtiene el ID del usuario actual desde el token JWT (temporal)
-        /// </summary>
-        private Guid GetCurrentUserId()
-        {
-            // En un sistema real, esto vendr韆 del ClaimsPrincipal
-            // Por ahora, devolver un GUID fijo para testing
-            return Guid.Parse("00000000-0000-0000-0000-000000000001");
         }
 
         #endregion

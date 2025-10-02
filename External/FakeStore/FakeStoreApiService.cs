@@ -3,12 +3,12 @@ using System.Text.Json;
 
 namespace External.FakeStore
 {
-    public class FakeStoreApiClient : IFakeStoreApiClient
+    public class FakeStoreApiService : IFakeStoreApiService
     {
         private readonly HttpClient _httpClient;
         private readonly JsonSerializerOptions _jsonOptions;
 
-        public FakeStoreApiClient(HttpClient httpClient)
+        public FakeStoreApiService(HttpClient httpClient)
         {
             _httpClient = httpClient;
             _jsonOptions = new JsonSerializerOptions
