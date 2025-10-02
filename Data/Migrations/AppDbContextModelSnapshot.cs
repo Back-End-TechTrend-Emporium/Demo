@@ -702,7 +702,7 @@ namespace Data.Migrations
             modelBuilder.Entity("Data.Entities.CartItem", b =>
                 {
                     b.HasOne("Data.Entities.Cart", "Cart")
-                        .WithMany("Items")
+                        .WithMany("CartItems")
                         .HasForeignKey("CartId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -812,7 +812,7 @@ namespace Data.Migrations
                         .IsRequired();
 
                     b.HasOne("Data.Entities.Wishlist", "Wishlist")
-                        .WithMany("Items")
+                        .WithMany("WishlistItems")
                         .HasForeignKey("WishlistId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -824,7 +824,7 @@ namespace Data.Migrations
 
             modelBuilder.Entity("Data.Entities.Cart", b =>
                 {
-                    b.Navigation("Items");
+                    b.Navigation("CartItems");
                 });
 
             modelBuilder.Entity("Data.Entities.Category", b =>
@@ -871,7 +871,7 @@ namespace Data.Migrations
 
             modelBuilder.Entity("Data.Entities.Wishlist", b =>
                 {
-                    b.Navigation("Items");
+                    b.Navigation("WishlistItems");
                 });
 #pragma warning restore 612, 618
         }
