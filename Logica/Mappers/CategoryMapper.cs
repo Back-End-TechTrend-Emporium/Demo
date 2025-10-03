@@ -1,11 +1,9 @@
 using Data.Entities;
-using Logica.Models;
+using Logica.Models.Category;
 
 namespace Logica.Mappers
 {
-    /// <summary>
-    /// Mapper para convertir entre Entidades de categorías y DTOs de dominio
-    /// </summary>
+  
     public static class CategoryMapper
     {
         public static CategoryDto ToCategoryDto(this Category category)

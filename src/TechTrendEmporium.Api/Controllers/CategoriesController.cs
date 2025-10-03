@@ -1,5 +1,6 @@
-using Logica.Models;
 using Logica.Interfaces;
+using Logica.Models.Category;
+using Logica.Models.Products;
 using Microsoft.AspNetCore.Mvc;
 
 namespace TechTrendEmporium.Api.Controllers
@@ -9,172 +10,325 @@ namespace TechTrendEmporium.Api.Controllers
     public class CategoriesController : BaseController
     {
         private readonly ICategoryService _categoryService;
+        private readonly IProductService _productService;
         private readonly ILogger<CategoriesController> _logger;
 
         public CategoriesController(
             ICategoryService categoryService,
+            IProductService productService,
             ILogger<CategoriesController> logger)
         {
             _categoryService = categoryService;
+            _productService = productService;
             _logger = logger;
         }
 
-       // CRUD Operations (Local Database)
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<CategoryDto>>> GetAllCategories()
+       
+
+       
+        [HttpGet("store/products")]
+        public async Task<ActionResult<CategoryFilterResponseDto>> GetProductsByCategory([FromQuery] string category)
         {
             try
             {
-                var categories = await _categoryService.GetAllCategoriesAsync();
-                return Ok(categories);
+                if (string.IsNullOrWhiteSpace(category))
+                {
+                    return BadRequest("Category parameter is required");
+                }
+
+                var products = await _productService.GetProductsByCategoryFromFakeStoreAsync(category);
+                
+                var response = new CategoryFilterResponseDto
+                {
+                    SelectedCategory = category,
+                    FilteredProducts = products
+                };
+
+                return Ok(response);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener todas las categorías");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error filtering products by category {Category}", category);
+                return StatusCode(500, "Internal server error");
             }
         }
 
-       
-        [HttpGet("approved")]
-        public async Task<ActionResult<IEnumerable<CategoryDto>>> GetApprovedCategories()
+      
+        [HttpPost]
+        public async Task<ActionResult<CategoryCreateResponseDto>> CreateCategory(CategoryCreateDto categoryDto)
+        {
+            try
+            {
+                // Verificar que solo SuperAdmin o Employee puedan crear categorías
+                var currentUserRole = GetCurrentUserRole();
+                if (!currentUserRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) && 
+                    !currentUserRole.Equals("Employee", StringComparison.OrdinalIgnoreCase))
+                {
+                    var forbiddenResponse = new CategoryCreateResponseDto
+                    {
+                        CategoryId = Guid.Empty,
+                        Message = "Failure"
+                    };
+                    return Forbid("Only SuperAdmin and Employee can create categories");
+                }
+
+                var createdBy = GetCurrentUserId();
+                var category = await _categoryService.CreateCategoryAsync(categoryDto, createdBy);
+
+                var response = new CategoryCreateResponseDto
+                {
+                    CategoryId = category.Id,
+                    Message = "Successful"
+                };
+
+                return CreatedAtAction(nameof(GetCategory), new { id = category.Id }, response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating category");
+                
+                var errorResponse = new CategoryCreateResponseDto
+                {
+                    CategoryId = Guid.Empty,
+                    Message = "Failure"
+                };
+
+                return StatusCode(500, errorResponse);
+            }
+        }
+
+      
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<CategorySimpleDto>>> GetCategories()
         {
             try
             {
                 var categories = await _categoryService.GetApprovedCategoriesAsync();
-                return Ok(categories);
+                var simplifiedCategories = categories.Select(c => new CategorySimpleDto
+                {
+                    Id = c.Id,
+                    Name = c.Name
+                });
+
+                return Ok(simplifiedCategories);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener categorías aprobadas");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting categories");
+                return StatusCode(500, "Internal server error");
             }
         }
 
-        
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<CategoryDto>> GetCategory(Guid id)
         {
-
-
             try
             {
                 var category = await _categoryService.GetCategoryByIdAsync(id);
                 
                 if (category == null)
                 {
-                    return NotFound($"Categoría con ID {id} no encontrada");
+                    return NotFound($"Category with ID {id} not found");
                 }
-                
+
                 return Ok(category);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener categoría {CategoryId}", id);
-                return StatusCode(500, "Error interno del servidor");
-            }
-        }
-
-        
-        [HttpGet("slug/{slug}")]
-        public async Task<ActionResult<CategoryDto>> GetCategoryBySlug(string slug)
-        {
-            try
-            {
-                var category = await _categoryService.GetCategoryBySlugAsync(slug);
-                
-                if (category == null)
-                {
-                    return NotFound($"Categoría con slug '{slug}' no encontrada");
-                }
-                
-                return Ok(category);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener categoría por slug {Slug}", slug);
-                return StatusCode(500, "Error interno del servidor");
-            }
-        }
-
-        [HttpPost]
-        public async Task<ActionResult<CategoryDto>> CreateCategory(CategoryCreateDto categoryDto)
-        {
-            try
-            {
-                var createdBy = GetCurrentUserId();
-                
-                var category = await _categoryService.CreateCategoryAsync(categoryDto, createdBy);
-                
-                return CreatedAtAction(nameof(GetCategory), new { id = category.Id }, category);
-            }
-            catch (InvalidOperationException ex)
-            {
-                _logger.LogWarning(ex, "Error de validación al crear categoría");
-                return BadRequest(ex.Message);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al crear categoría");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting category {CategoryId}", id);
+                return StatusCode(500, "Internal server error");
             }
         }
 
        
-        [HttpPut("{id:guid}")]
-        public async Task<ActionResult<CategoryDto>> UpdateCategory(Guid id, CategoryUpdateDto categoryDto)
+        [HttpPut]
+        public async Task<ActionResult<CategoryResponseDto>> UpdateCategory(CategoryUpdateDto categoryDto)
         {
             try
             {
-                var category = await _categoryService.UpdateCategoryAsync(id, categoryDto);
+                // Verificar que solo SuperAdmin o Employee puedan editar categorías
+                var currentUserRole = GetCurrentUserRole();
+                if (!currentUserRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) && 
+                    !currentUserRole.Equals("Employee", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Forbid("Only SuperAdmin and Employee can update categories");
+                }
+
+                var category = await _categoryService.UpdateCategoryAsync(categoryDto.Id, categoryDto);
 
                 if (category == null)
                 {
-                    return NotFound($"Categoría con ID {id} no encontrada");
+                    return NotFound($"Category with ID {categoryDto.Id} not found");
                 }
 
-                return Ok(category);
-            }
-            catch (InvalidOperationException ex)
-            {
-                _logger.LogWarning(ex, "Error de validación al actualizar categoría {CategoryId}", id);
-                return BadRequest(ex.Message);
+                var response = new CategoryResponseDto
+                {
+                    Message = "Updated successfuly"
+                };
+
+                return Ok(response);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al actualizar categoría {CategoryId}", id);
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error updating category {CategoryId}", categoryDto.Id);
+                return StatusCode(500, "Internal server error");
             }
         }
 
-        
-        [HttpDelete("{id:guid}")]
-        public async Task<ActionResult> DeleteCategory(Guid id)
+        [HttpDelete]
+        public async Task<ActionResult<CategoryResponseDto>> DeleteCategory(CategoryDeleteDto deleteDto)
         {
             try
             {
-                var success = await _categoryService.DeleteCategoryAsync(id);
+                var currentUserRole = GetCurrentUserRole();
                 
-                if (!success)
+               
+                if (!currentUserRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) && 
+                    !currentUserRole.Equals("Employee", StringComparison.OrdinalIgnoreCase))
                 {
-                    return NotFound($"Categoría con ID {id} no encontrada");
+                    return Forbid("Only SuperAdmin and Employee can delete categories");
                 }
+
+               
+                if (currentUserRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase))
+                {
+                    var success = await _categoryService.DeleteCategoryAsync(deleteDto.Id);
+
+                    if (!success)
+                    {
+                        return NotFound($"Category with ID {deleteDto.Id} not found");
+                    }
+
+                    var response = new CategoryResponseDto
+                    {
+                        Message = "Deleted successfuly"                     
+                    };
+
+                    return Ok(response);
+                }
+               
+                else if (currentUserRole.Equals("Employee", StringComparison.OrdinalIgnoreCase))
+                {
+                    
+                    var response = new CategoryResponseDto
+                    {
+                        Message = "Category marked as pending for deletion"
+                    };
+
+                    return Ok(response);
+                }
+
                 
-                return NoContent();
-            }
-            catch (InvalidOperationException ex)
-            {
-                _logger.LogWarning(ex, "Error de validación al eliminar categoría {CategoryId}", id);
-                return BadRequest(ex.Message);
+                return Forbid("Insufficient permissions to delete categories");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al eliminar categoría {CategoryId}", id);
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error deleting category {CategoryId}", deleteDto.Id);
+                return StatusCode(500, "Internal server error");
             }
         }
 
-      
+        [HttpGet("all")]
+        public async Task<ActionResult<IEnumerable<CategoryDto>>> GetAllCategories()
+        {
+            try
+            {
+       
+                var categories = await _categoryService.GetAllCategoriesAsync();
+                return Ok(categories);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting all categories");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+       
+        [HttpGet("pending-approval")]
+        public async Task<ActionResult<IEnumerable<CategoryDto>>> GetPendingApproval()
+        {
+            try
+            {
+                var currentUserRole = GetCurrentUserRole();
+                if (!currentUserRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) &&
+                    !currentUserRole.Equals("Employee", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Forbid("Only SuperAdmin and Employee can update categories");
+                }
+
+                
+
+                var categories = await _categoryService.GetPendingApprovalAsync();
+                return Ok(categories);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting pending approval categories");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+       
+        [HttpPost("{id:guid}/approve")]
+        public async Task<ActionResult> ApproveCategory(Guid id)
+        {
+            try
+            {
+                var currentUserRole = GetCurrentUserRole();
+                if (!currentUserRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) &&
+                    !currentUserRole.Equals("Employee", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Forbid("Only SuperAdmin and Employee can update categories");
+                }
+
+                var approvedBy = GetCurrentUserId();
+                var success = await _categoryService.ApproveCategoryAsync(id, approvedBy);
+
+                if (!success)
+                {
+                    return NotFound($"Category with ID {id} not found");
+                }
+
+                return Ok(new { Message = "Category approved successfully" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error approving category {CategoryId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+       
+        [HttpPost("{id:guid}/reject")]
+        public async Task<ActionResult> RejectCategory(Guid id)
+        {
+            try
+            {
+                var currentUserRole = GetCurrentUserRole();
+                if (!currentUserRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) &&
+                    !currentUserRole.Equals("Employee", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Forbid("Only SuperAdmin and Employee can update categories");
+                }
+
+                var success = await _categoryService.RejectCategoryAsync(id);
+
+                if (!success)
+                {
+                    return NotFound($"Category with ID {id} not found");
+                }
+
+                return Ok(new { Message = "Category rejected successfully" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error rejecting category {CategoryId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+       
         [HttpGet("search")]
         public async Task<ActionResult<IEnumerable<CategoryDto>>> SearchCategories([FromQuery] string searchTerm)
         {
@@ -182,7 +336,7 @@ namespace TechTrendEmporium.Api.Controllers
             {
                 if (string.IsNullOrWhiteSpace(searchTerm))
                 {
-                    return BadRequest("El término de búsqueda es requerido");
+                    return BadRequest("Search term is required");
                 }
 
                 var categories = await _categoryService.SearchCategoriesAsync(searchTerm);
@@ -190,14 +344,10 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error en búsqueda de categorías");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error searching categories");
+                return StatusCode(500, "Internal server error");
             }
         }
-
-      
-
-      
 
        
         [HttpGet("fakestore")]
@@ -210,119 +360,34 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener categorías de FakeStore");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting categories from FakeStore");
+                return StatusCode(500, "Internal server error");
             }
         }
 
-     
-
-        // Sync Operations
-
-    
+      
         [HttpPost("sync-from-fakestore")]
         public async Task<ActionResult<object>> SyncCategoriesFromFakeStore()
         {
             try
             {
                 var createdBy = GetCurrentUserId();
-                var importedCount = await _categoryService.SyncCategoriesFromFakeStoreAsync(createdBy);
-                
+                var syncCount = await _categoryService.SyncCategoriesFromFakeStoreAsync(createdBy);
+
                 return Ok(new
                 {
-                    Message = "Sincronización de categorías completada exitosamente",
-                    ImportedCount = importedCount,
+                    Message = "Categories synchronized successfully",
+                    SyncedCount = syncCount,
                     Timestamp = DateTime.UtcNow
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error en sincronización de categorías desde FakeStore");
-                return StatusCode(500, "Error durante la sincronización");
+                _logger.LogError(ex, "Error syncing categories from FakeStore");
+                return StatusCode(500, "Error during synchronization");
             }
         }
-
-        
-
-        // Approval Operations
 
       
-        [HttpGet("pending-approval")]
-        public async Task<ActionResult<IEnumerable<CategoryDto>>> GetPendingApproval()
-        {
-            try
-            {
-                var categories = await _categoryService.GetPendingApprovalAsync();
-                return Ok(categories);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener categorías pendientes de aprobación");
-                return StatusCode(500, "Error interno del servidor");
-            }
-        }
-
-       
-        [HttpPost("{id:guid}/approve")]
-        public async Task<ActionResult> ApproveCategory(Guid id)
-        {
-            try
-            {
-                var approvedBy = GetCurrentUserId();
-                var success = await _categoryService.ApproveCategoryAsync(id, approvedBy);
-                
-                if (!success)
-                {
-                    return NotFound($"Categoría con ID {id} no encontrada o no está pendiente de aprobación");
-                }
-                
-                return Ok(new { Message = "Categoría aprobada exitosamente" });
-            }
-            catch (InvalidOperationException ex)
-            {
-                _logger.LogWarning(ex, "Error de validación al aprobar categoría {CategoryId}", id);
-                return BadRequest(ex.Message);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al aprobar categoría {CategoryId}", id);
-                return StatusCode(500, "Error interno del servidor");
-            }
-        }
-
-        [HttpPost("{id:guid}/reject")]
-        public async Task<ActionResult> RejectCategory(Guid id)
-        {
-            try
-            {
-                var success = await _categoryService.RejectCategoryAsync(id);
-                
-                if (!success)
-                {
-                    return NotFound($"Categoría con ID {id} no encontrada o no está pendiente de aprobación");
-                }
-                
-                return Ok(new { Message = "Categoría rechazada exitosamente" });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al rechazar categoría {CategoryId}", id);
-                return StatusCode(500, "Error interno del servidor");
-            }
-        }
-
-       
-
-        
-
-      
-        private static Guid ConvertIntToGuid(int id)
-        {
-            var bytes = new byte[16];
-            var idBytes = BitConverter.GetBytes(id);
-            Array.Copy(idBytes, 0, bytes, 0, 4);
-            return new Guid(bytes);
-        }
-
     }
 }
