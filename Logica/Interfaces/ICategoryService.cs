@@ -1,4 +1,4 @@
-using Logica.Models;
+using Logica.Models.Category;
 
 namespace Logica.Interfaces
 {
