@@ -82,5 +82,22 @@ namespace Logica.Repositories
             _context.Sessions.Update(session);
             await _context.SaveChangesAsync(cancellationToken);
         }
+        public async Task<User?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
+        {
+            return await _context.Users
+                .FirstOrDefaultAsync(u => u.Username.ToLower() == username.ToLower(), cancellationToken);
+        }
+
+        public async Task<List<User>> GetUsersByUsernamesAsync(List<string> usernames, CancellationToken cancellationToken = default)
+        {
+            var lowerUsernames = usernames.Select(u => u.ToLower()).ToList();
+            return await _context.Users.Where(u => lowerUsernames.Contains(u.Username.ToLower())).ToListAsync(cancellationToken);
+        }
+
+        public async Task DeleteUsersAsync(List<User> users, CancellationToken cancellationToken = default)
+        {
+            _context.Users.RemoveRange(users);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
     }
 }

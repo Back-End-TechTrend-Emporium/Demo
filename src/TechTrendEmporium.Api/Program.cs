@@ -75,6 +75,7 @@ builder.Services.AddScoped<IProductRepository, ProductRepository>();
 // --- Servicios de Autenticación  ---
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 // --- Configuración de Autenticación JWT  ---
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -169,7 +170,7 @@ if (builder.Configuration.GetValue<bool>("EnsureSystemUser", true))
                 Id = systemUserId,
                 Email = "system@techtrendemporium.com",
                 Username = "system",
-                PasswordHash = "SYSTEM_ACCOUNT_NOT_FOR_LOGIN",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Password123!"),
                 Role = Data.Entities.Enums.Role.Admin,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
@@ -206,5 +207,7 @@ app.UseAuthorization();  // 2. Verifica si ese usuario tiene permisos.
 
 app.MapControllers();
 app.MapGet("/health", () => "Healthy");
+
+await app.SeedDatabaseAsync(); //Para crear el usuario SuperAdmin inicial
 
 app.Run();
