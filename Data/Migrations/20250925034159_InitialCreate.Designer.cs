@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251002210149_InitialCreate")]
+    [Migration("20250925034159_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -705,7 +705,7 @@ namespace Data.Migrations
             modelBuilder.Entity("Data.Entities.CartItem", b =>
                 {
                     b.HasOne("Data.Entities.Cart", "Cart")
-                        .WithMany("CartItems")
+                        .WithMany("Items")
                         .HasForeignKey("CartId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -815,7 +815,7 @@ namespace Data.Migrations
                         .IsRequired();
 
                     b.HasOne("Data.Entities.Wishlist", "Wishlist")
-                        .WithMany("WishlistItems")
+                        .WithMany("Items")
                         .HasForeignKey("WishlistId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -827,7 +827,7 @@ namespace Data.Migrations
 
             modelBuilder.Entity("Data.Entities.Cart", b =>
                 {
-                    b.Navigation("CartItems");
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("Data.Entities.Category", b =>
@@ -874,7 +874,7 @@ namespace Data.Migrations
 
             modelBuilder.Entity("Data.Entities.Wishlist", b =>
                 {
-                    b.Navigation("WishlistItems");
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }
