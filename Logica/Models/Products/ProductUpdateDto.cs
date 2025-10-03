@@ -4,8 +4,9 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Logica.Models;
 
-namespace Logica.Models
+namespace Logica.Models.Products
 {
     public class ProductUpdateDto
     {
@@ -18,5 +19,9 @@ namespace Logica.Models
         public string? Category { get; set; }
         
         public string? Image { get; set; }
+        
+        public RatingDto? Rating { get; set; }
+        
+        public InventoryDto? Inventory { get; set; }
     }
 }
