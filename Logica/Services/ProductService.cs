@@ -8,31 +8,29 @@ using Data.Entities;
 using Data.Entities.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Logica.Models.Products;
 
 namespace Logica.Services
 {
-    /// <summary>
-    /// Servicio completo que maneja la lógica de productos
-    /// Incluye CRUD local y sincronización con FakeStore API
-    /// </summary>
+   
     public class ProductService : IProductService
     {
-        private readonly IFakeStoreApiClient _fakeStoreClient;
+        private readonly IFakeStoreApiService _fakeStoreClient;
         private readonly IProductRepository _productRepository;
         private readonly AppDbContext _context;
         private readonly ILogger<ProductService> _logger;
 
         public ProductService(
-            IFakeStoreApiClient fakeStoreClient,
-            IProductRepository productRepository,
-            AppDbContext context,
-            ILogger<ProductService> logger)
-        {
-            _fakeStoreClient = fakeStoreClient;
-            _productRepository = productRepository;
-            _context = context;
-            _logger = logger;
-        }
+    IFakeStoreApiService fakeStoreClient,
+    IProductRepository productRepository,
+    AppDbContext context,
+    ILogger<ProductService> logger)
+{
+    _fakeStoreClient = fakeStoreClient;
+    _productRepository = productRepository;
+    _context = context;
+    _logger = logger;
+}
 
         #region CRUD Operations (Local Database)
 
@@ -181,7 +179,7 @@ namespace Logica.Services
                 {
                     try
                     {
-                        var importedProduct = await ImportProductFromFakeStoreAsync(fakeStoreProduct.id, createdBy);
+                        var importedProduct = await ImportProductFromFakeStoreAsync(fakeStoreProduct.Id, createdBy);
                         if (importedProduct != null)
                         {
                             importedCount++;
@@ -190,7 +188,7 @@ namespace Logica.Services
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Error importando producto {ProductId} desde FakeStore", 
-                            fakeStoreProduct.id);
+                            fakeStoreProduct.Id);
                     }
                 }
 
@@ -227,20 +225,20 @@ namespace Logica.Services
                 }
 
                 // Buscar o crear categoría
-                var category = await GetOrCreateCategoryAsync(fakeStoreProduct.category, createdBy);
+                var category = await GetOrCreateCategoryAsync(fakeStoreProduct.Category, createdBy);
 
                 // Crear producto
                 var product = new Product
                 {
-                    Title = fakeStoreProduct.title,
-                    Price = fakeStoreProduct.price,
-                    Description = fakeStoreProduct.description,
-                    ImageUrl = fakeStoreProduct.image,
+                    Title = fakeStoreProduct.Title,
+                    Price = fakeStoreProduct.Price,
+                    Description = fakeStoreProduct.Description,
+                    ImageUrl = fakeStoreProduct.Image,
                     CategoryId = category.Id,
                     CreatedBy = createdBy,
                     State = ApprovalState.Approved, // Auto-aprobar productos importados
-                    RatingAverage = (decimal)(fakeStoreProduct.rating?.rate ?? 0),
-                    RatingCount = fakeStoreProduct.rating?.count ?? 0,
+                    RatingAverage = (decimal)(fakeStoreProduct.Rating?.Rate ?? 0),
+                    RatingCount = fakeStoreProduct.Rating?.Count ?? 0,
                     CreatedAt = DateTime.UtcNow
                 };
 
@@ -325,6 +323,20 @@ namespace Logica.Services
             return products.Select(p => p.ToProductDto());
         }
 
+        public async Task<IEnumerable<ProductSummaryDto>> GetProductsByUserIdAsync(Guid userId)
+        {
+            try
+            {
+                var products = await _productRepository.GetByCreatorIdAsync(userId);
+                return products.Select(ProductMapper.ToSummaryDto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting products for user {UserId}", userId);
+                throw;
+            }
+        }
+
         #endregion
 
         #region Helper Methods
@@ -372,16 +384,16 @@ namespace Logica.Services
         {
             return new ProductDto
             {
-                Id = fakeStoreProduct.id,
-                Title = fakeStoreProduct.title,
-                Price = fakeStoreProduct.price,
-                Description = fakeStoreProduct.description,
-                Category = fakeStoreProduct.category,
-                Image = fakeStoreProduct.image,
-                Rating = fakeStoreProduct.rating != null ? new RatingDto
+                Id = Guid.NewGuid(), // Generar GUID único para productos de FakeStore
+                Title = fakeStoreProduct.Title,
+                Price = fakeStoreProduct.Price,
+                Description = fakeStoreProduct.Description,
+                Category = fakeStoreProduct.Category,
+                Image = fakeStoreProduct.Image,
+                Rating = fakeStoreProduct.Rating != null ? new RatingDto
                 {
-                    Rate = fakeStoreProduct.rating.rate,
-                    Count = fakeStoreProduct.rating.count
+                    Rate = fakeStoreProduct.Rating.Rate,
+                    Count = fakeStoreProduct.Rating.Count
                 } : null
             };
             

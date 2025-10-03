@@ -14,10 +14,10 @@ namespace External.FakeStore.Mappers
         {
             return new Product
             {
-                Title = fakeStoreProduct.title,
-                Price = fakeStoreProduct.price,
-                Description = fakeStoreProduct.description,
-                ImageUrl = fakeStoreProduct.image,
+                Title = fakeStoreProduct.Title,
+                Price = fakeStoreProduct.Price,
+                Description = fakeStoreProduct.Description,
+                ImageUrl = fakeStoreProduct.Image,
                 State = ApprovalState.PendingApproval,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -31,7 +31,7 @@ namespace External.FakeStore.Mappers
             {
                 Source = ExternalSource.FakeStore,
                 SourceType = "PRODUCT",
-                SourceId = fakeStoreProduct.id.ToString(),
+                SourceId = fakeStoreProduct.Id.ToString(),
                 InternalId = internalProductId,
                 SnapshotJson = System.Text.Json.JsonSerializer.Serialize(fakeStoreProduct),
                 ImportedAt = DateTime.UtcNow
@@ -47,10 +47,10 @@ namespace External.FakeStore.Mappers
                 UpdatedAt = DateTime.UtcNow
             };
 
-            var cartItems = fakeStoreCart.products.Select(p => new CartItem
+            var cartItems = fakeStoreCart.Products.Select(p => new CartItem
             {
                 ProductId = Guid.NewGuid(), // Necesitarías resolver esto desde ExternalMapping
-                Quantity = p.quantity,
+                Quantity = p.Quantity,
                 Cart = cart,
                 CreatedAt = DateTime.UtcNow
             }).ToList();

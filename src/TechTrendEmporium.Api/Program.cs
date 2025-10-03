@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using Data;
 using External.FakeStore;
 using Logica.Interfaces;
@@ -56,8 +59,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure(
         maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null)));
 
-// --- HttpClient para FakeStore API  ---
-builder.Services.AddHttpClient<IFakeStoreApiClient, FakeStoreApiClient>(client =>
+// === HttpClient para FakeStore API ===
+builder.Services.AddHttpClient<IFakeStoreApiService, FakeStoreApiService>(client =>
 {
     var fakeStoreConfig = builder.Configuration.GetSection("FakeStoreApi");
     var baseUrl = fakeStoreConfig["BaseUrl"] ?? "https://fakestoreapi.com";
@@ -67,17 +70,22 @@ builder.Services.AddHttpClient<IFakeStoreApiClient, FakeStoreApiClient>(client =
     client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 });
 
-// --- Inyección de Dependencias (Combinado) ---
+// === Dependency Injection ===
+// Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
+
+// Services
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IProductService, ProductService>();
-builder.Services.AddScoped<IProductRepository, ProductRepository>();
-// --- Servicios de Autenticación  ---
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+
+// Authentication Services
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IUserService, UserService>();
 
-// --- Configuración de Autenticación JWT  ---
+// === Configuración de Autenticación JWT ===
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -94,14 +102,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// --- Servicios estándar de la API ---
+// === Servicios estándar de la API ===
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// --- Configuración de Swagger con soporte para JWT  ---
+// === Configuración de Swagger con soporte para JWT ===
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "TechTrendEmporium.Api", Version = "v1" });
+    
     // Añade la definición de seguridad para Bearer (JWT)
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
@@ -111,6 +120,7 @@ builder.Services.AddSwaggerGen(c =>
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
+    
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -201,7 +211,7 @@ if (swaggerEnabled)
 
 app.UseHttpsRedirection();
 
-// --- ¡MUY IMPORTANTE EL ORDEN! ---
+// === ¡MUY IMPORTANTE EL ORDEN! ===
 app.UseAuthentication(); // 1. Identifica quién es el usuario (lee el token).
 app.UseAuthorization();  // 2. Verifica si ese usuario tiene permisos.
 

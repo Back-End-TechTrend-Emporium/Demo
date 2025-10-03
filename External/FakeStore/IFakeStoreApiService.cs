@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace External.FakeStore
 {
-    public interface IFakeStoreApiClient
+    public interface IFakeStoreApiService
     {
         Task<IEnumerable<FakeStoreProductResponse>> GetProductsAsync();
         Task<FakeStoreProductResponse?> GetProductByIdAsync(int id);
