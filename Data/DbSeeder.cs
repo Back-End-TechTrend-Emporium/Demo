@@ -1,42 +1,48 @@
 ﻿using Data.Entities;
 using Data.Entities.Enums;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection; 
-using Microsoft.AspNetCore.Builder;
-using BCrypt.Net;
+using Microsoft.Extensions.Logging; // Añadir este using
 
 namespace Data;
 
 public static class DbSeeder
 {
-    // Este será un método de extensión para facilitar su llamada desde Program.cs
-    public static async Task SeedDatabaseAsync(this IApplicationBuilder app)
+    // Un solo método para crear todos los usuarios necesarios
+    public static async Task SeedUsersAsync(AppDbContext context, ILogger logger)
     {
-        // Creamos un "scope" para obtener los servicios, como el DbContext
-        using var scope = app.ApplicationServices.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        // 1. Asegura que la base de datos esté creada y las migraciones aplicadas
-        await context.Database.MigrateAsync();
-
-        // 2. Busca si ya existe un usuario Administrador o SuperAdmin
-        var adminExists = await context.Users.AnyAsync(u => u.Role == Role.Admin || u.Role == Role.SuperAdmin);
-
-        // 3. Si no existe, créalo
-        if (!adminExists)
+        // 1. Crear usuario de Sistema (de la versión oficial)
+        var systemUserId = new Guid("00000000-0000-0000-0000-000000000001");
+        if (!await context.Users.AnyAsync(u => u.Id == systemUserId))
         {
-            var adminUser = new User
+            context.Users.Add(new User
+            {
+                Id = systemUserId,
+                Name = "System",
+                Email = "system@techtrendemporium.com",
+                Username = "system",
+                PasswordHash = "SYSTEM_ACCOUNT_NOT_FOR_LOGIN", // No se puede usar para login
+                Role = Role.Admin,
+                IsActive = true
+            });
+            logger.LogInformation("System user created.");
+        }
+
+        // 2. Crear usuario Administrador para pruebas (tu funcionalidad)
+        if (!await context.Users.AnyAsync(u => u.Username == "admin"))
+        {
+            context.Users.Add(new User
             {
                 Name = "Admin User",
                 Email = "admin@example.com",
                 Username = "admin",
-                // Hasheamos la contraseña para que el login funcione
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Password123!"),
-                Role = Role.SuperAdmin,
+                Role = Role.Admin,
                 IsActive = true
-            };
-            context.Users.Add(adminUser);
-            await context.SaveChangesAsync();
+            });
+            logger.LogInformation("Admin test user created.");
         }
+
+        // Guardar todos los cambios a la vez
+        await context.SaveChangesAsync();
     }
 }

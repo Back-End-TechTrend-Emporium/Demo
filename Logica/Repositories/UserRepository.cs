@@ -82,7 +82,6 @@ namespace Logica.Repositories
             _context.Sessions.Update(session);
             await _context.SaveChangesAsync(cancellationToken);
         }
-<<<<<<< HEAD
         public async Task<User?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
         {
             return await _context.Users
@@ -100,7 +99,5 @@ namespace Logica.Repositories
             _context.Users.RemoveRange(users);
             await _context.SaveChangesAsync(cancellationToken);
         }
-=======
->>>>>>> upstream/main
     }
 }
