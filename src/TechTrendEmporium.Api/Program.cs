@@ -105,13 +105,36 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
 // === Configuración de Autenticación JWT ===
+// Obtener la clave JWT de múltiples ubicaciones para compatibilidad con Azure
+var jwtKey = configuration["Jwt:Key"] 
+          ?? configuration["Jwt_Key"] 
+          ?? Environment.GetEnvironmentVariable("Jwt_Key")
+          ?? Environment.GetEnvironmentVariable("Jwt__Key");
+
+//Debug ayudado con la IA
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    Console.WriteLine("[ERROR] JWT Key not found in any configuration source");
+    Console.WriteLine("[DEBUG] Available JWT-related configuration:");
+    foreach (var item in configuration.AsEnumerable())
+    {
+        if (item.Key.Contains("Jwt", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"  {item.Key} = {(item.Value?.Length > 0 ? "[SET]" : "[EMPTY]")}");
+        }
+    }
+    throw new InvalidOperationException("La clave JWT no fue encontrada en ninguna ubicación válida.");
+}
+
+Console.WriteLine($"[DEBUG] JWT Key found: {jwtKey.Length} characters");
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Jwt:Key"]!)),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
             ValidateIssuer = false,
             ValidateAudience = false,
             ValidateLifetime = true,
