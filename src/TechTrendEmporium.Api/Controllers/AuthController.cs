@@ -11,11 +11,34 @@ namespace TechTrendEmporium.Api.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
+        private readonly IConfiguration _configuration; //IA debug de token
 
-        public AuthController(IAuthService authService)
+        public AuthController(IAuthService authService, IConfiguration configuration) //IA debug de token
         {
             _authService = authService;
+            _configuration = configuration; //IA debug de token
         }
+
+        //IA debug de token - Endpoint temporal para diagnosticar JWT (REMOVER EN PRODUCCIÓN)
+        [HttpGet("debug/jwt")]
+        public IActionResult DebugJwt()
+        {
+            //IA debug de token - Buscar la clave JWT en múltiples ubicaciones para compatibilidad con Azure
+            var jwtKey = _configuration["Jwt:Key"] 
+                      ?? _configuration["Jwt_Key"] 
+                      ?? Environment.GetEnvironmentVariable("Jwt_Key")
+                      ?? Environment.GetEnvironmentVariable("Jwt__Key");
+
+            //IA debug de token - Retornar información de diagnóstico
+            return Ok(new 
+            { 
+                jwtKeyFound = !string.IsNullOrWhiteSpace(jwtKey),
+                jwtKeyLength = jwtKey?.Length ?? 0,
+                environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+                siteName = Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME")
+            });
+        }
+        //IA debug de token - FIN del endpoint de diagnóstico
 
         // F02: Sign Up Shopper
         [HttpPost("auth")]
