@@ -28,7 +28,7 @@ public static class DbSeeder
         }
 
         // 2. Crear usuario Administrador para pruebas (tu funcionalidad)
-        if (!await context.Users.AnyAsync(u => u.Username == "admin"))
+        if (!await context.Users.AnyAsync(u => u.Username == "admin" || u.Email == "admin@example.com"))
         {
             context.Users.Add(new User
             {
@@ -41,13 +41,13 @@ public static class DbSeeder
             });
             logger.LogInformation("Admin test user created.");
         }
-        if (!await context.Users.AnyAsync(u => u.Username == "superadmin"))
+        if (!await context.Users.AnyAsync(u => u.Username == "superadmin" || u.Email == "admin@tte.com"))
         {
             context.Users.Add(new User
             {
                 Name = "Admin super",
                 Email = "admin@tte.com",
-                Username = "supadmin",
+                Username = "superadmin",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Password123!"),
                 Role = Role.SuperAdmin,
                 IsActive = true
