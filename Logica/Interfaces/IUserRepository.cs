@@ -17,5 +17,7 @@ namespace Logica.Interfaces
         Task<Session?> GetActiveSessionByJtiAsync(string tokenJti, CancellationToken cancellationToken = default);
         Task UpdateUserAsync(User user, CancellationToken cancellationToken = default);
         Task UpdateSessionAsync(Session session, CancellationToken cancellationToken = default);
+        Task<User?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default);
+
     }
 }

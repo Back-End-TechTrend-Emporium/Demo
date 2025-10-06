@@ -389,11 +389,11 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-    
 
-    // Utilities
 
-    
+        // Utilities
+
+
         private static Guid ConvertIntToGuid(int id)
         {
             var bytes = new byte[16];
