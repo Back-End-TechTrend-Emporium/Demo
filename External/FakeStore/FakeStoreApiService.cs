@@ -1,5 +1,6 @@
 using External.FakeStore.Models;
 using System.Text.Json;
+using System.Text;
 
 namespace External.FakeStore
 {
@@ -17,6 +18,7 @@ namespace External.FakeStore
             };
         }
 
+        // Products
         public async Task<IEnumerable<FakeStoreProductResponse>> GetProductsAsync()
         {
             var response = await _httpClient.GetStringAsync("/products");
@@ -52,6 +54,15 @@ namespace External.FakeStore
             return fakeStoreProducts ?? Enumerable.Empty<FakeStoreProductResponse>();
         }
 
+        // Carts
+        public async Task<IEnumerable<FakeStoreCartResponse>> GetCartsAsync()
+        {
+            var response = await _httpClient.GetStringAsync("/carts");
+            var fakeStoreCarts = JsonSerializer.Deserialize<List<FakeStoreCartResponse>>(response, _jsonOptions);
+            
+            return fakeStoreCarts ?? Enumerable.Empty<FakeStoreCartResponse>();
+        }
+
         public async Task<FakeStoreCartResponse?> GetCartByIdAsync(int cartId)
         {
             try
@@ -65,12 +76,55 @@ namespace External.FakeStore
             }
         }
 
-        public async Task<IEnumerable<FakeStoreCartResponse>> GetCartsAsync()
+        public async Task<FakeStoreCartResponse?> CreateCartAsync(FakeStoreCartCreateRequest cartRequest)
         {
-            var response = await _httpClient.GetStringAsync("/carts");
-            var fakeStoreCarts = JsonSerializer.Deserialize<List<FakeStoreCartResponse>>(response, _jsonOptions);
-            
-            return fakeStoreCarts ?? Enumerable.Empty<FakeStoreCartResponse>();
+            try
+            {
+                var json = JsonSerializer.Serialize(cartRequest, _jsonOptions);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                
+                var response = await _httpClient.PostAsync("/carts", content);
+                var responseContent = await response.Content.ReadAsStringAsync();
+                
+                return JsonSerializer.Deserialize<FakeStoreCartResponse>(responseContent, _jsonOptions);
+            }
+            catch (HttpRequestException)
+            {
+                return null;
+            }
+        }
+
+        public async Task<FakeStoreCartResponse?> UpdateCartAsync(int cartId, FakeStoreCartUpdateRequest cartRequest)
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(cartRequest, _jsonOptions);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                
+                var response = await _httpClient.PutAsync($"/carts/{cartId}", content);
+                var responseContent = await response.Content.ReadAsStringAsync();
+                
+                return JsonSerializer.Deserialize<FakeStoreCartResponse>(responseContent, _jsonOptions);
+            }
+            catch (HttpRequestException)
+            {
+                return null;
+            }
+        }
+
+        public async Task<FakeStoreCartResponse?> DeleteCartAsync(int cartId)
+        {
+            try
+            {
+                var response = await _httpClient.DeleteAsync($"/carts/{cartId}");
+                var responseContent = await response.Content.ReadAsStringAsync();
+                
+                return JsonSerializer.Deserialize<FakeStoreCartResponse>(responseContent, _jsonOptions);
+            }
+            catch (HttpRequestException)
+            {
+                return null;
+            }
         }
     }
 }

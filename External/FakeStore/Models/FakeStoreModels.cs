@@ -33,4 +33,19 @@ namespace External.FakeStore.Models
         public int ProductId { get; set; }
         public int Quantity { get; set; }
     }
+
+    // Modelos para las operaciones de creación y actualización
+    public class FakeStoreCartCreateRequest
+    {
+        public int Id { get; set; }
+        public int UserId { get; set; }
+        public List<FakeStoreCartProduct> Products { get; set; } = new();
+    }
+
+    public class FakeStoreCartUpdateRequest
+    {
+        public int Id { get; set; }
+        public int UserId { get; set; }
+        public List<FakeStoreCartProduct> Products { get; set; } = new();
+    }
 }
