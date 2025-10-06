@@ -4,10 +4,7 @@ namespace Logica.Models.Wishlist
 {
     public class WishlistRemoveProductDto
     {
-        [Required]
-        public Guid UserId { get; set; }
-        
-        [Required]
+        [Required] 
         public Guid ProductId { get; set; }
     }
 }
