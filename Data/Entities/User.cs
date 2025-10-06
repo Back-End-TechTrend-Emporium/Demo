@@ -12,6 +12,10 @@ namespace Data.Entities
         public Guid Id { get; set; } = Guid.NewGuid();
 
         [Required]
+        [MaxLength(100)]
+        public string Name { get; set; } = string.Empty;
+
+        [Required]
         [MaxLength(255)]
         [EmailAddress]
         public string Email { get; set; } = string.Empty;

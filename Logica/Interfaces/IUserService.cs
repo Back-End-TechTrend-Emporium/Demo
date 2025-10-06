@@ -6,8 +6,10 @@ namespace Logica.Interfaces
 {
     public interface IUserService
     {
-        Task<IEnumerable<GetUserResponse>> GetAllUsersAsync(CancellationToken cancellationToken = default);
-        Task<User> CreateUserAsync(string email, string username, string password, Role role, CancellationToken cancellationToken = default);
-        Task<User?> GetUserByIdAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<IEnumerable<UserResponse>> GetAllUsersAsync(CancellationToken cancellationToken = default);
+        Task<UserResponse?> GetUserByIdAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<(UserResponse? User, string? Error)> CreateUserAsync(CreateUserRequest request, CancellationToken cancellationToken = default);
+        Task<(UserResponse? User, string? Error)> UpdateUserAsync(string username, UpdateUserRequest request, CancellationToken cancellationToken = default);
+        Task<(bool Success, string? Error)> DeleteUsersAsync(DeleteUsersRequest request, CancellationToken cancellationToken = default);
     }
 }

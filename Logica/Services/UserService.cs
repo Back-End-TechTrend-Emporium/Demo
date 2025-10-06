@@ -14,43 +14,82 @@ namespace Logica.Services
             _userRepository = userRepository;
         }
 
-        public async Task<IEnumerable<GetUserResponse>> GetAllUsersAsync(CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<UserResponse>> GetAllUsersAsync(CancellationToken cancellationToken = default)
         {
-            var usuario = await _userRepository.GetAllAsync(cancellationToken);
-
-            var model = usuario.Select(u => new GetUserResponse
-            {
-                Id = u.Id,
-                Email = u.Email,
-                Username = u.Username,
-            }).ToList();
-            return model;
+            var users = await _userRepository.GetAllAsync(cancellationToken);
+            // Mapeamos a UserResponse para no exponer datos sensibles como el PasswordHash
+            return users.Select(u => new UserResponse(u.Id, u.Name, u.Email, u.Username, u.Role.ToString()));
         }
 
-        public async Task<User> CreateUserAsync(string email, string username, string password, Role role, CancellationToken cancellationToken = default)
+        public async Task<UserResponse?> GetUserByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
-            // Validaciones de negocio
-            if (await _userRepository.EmailExistsAsync(email, cancellationToken))
-                throw new InvalidOperationException("El e-mail ya existe");
+            var user = await _userRepository.GetByIdAsync(id, cancellationToken);
+            if (user == null)
+            {
+                return null;
+            }
+            // Mapeamos a UserResponse
+            return new UserResponse(user.Id, user.Name, user.Email, user.Username, user.Role.ToString());
+        }
 
-            if (await _userRepository.UsernameExistsAsync(username, cancellationToken))
-                throw new InvalidOperationException("El nombre de usuario ya existe");
+        public async Task<(UserResponse? User, string? Error)> CreateUserAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
+        {
+            if (await _userRepository.EmailExistsAsync(request.Email, cancellationToken) || await _userRepository.UsernameExistsAsync(request.Username, cancellationToken))
+            {
+                return (null, "El email o nombre de usuario ya existe.");
+            }
+
+            if (!Enum.IsDefined(typeof(Role), request.Role))
+            {
+                return (null, "El rol especificado no es válido.");
+            }
 
             var user = new User
             {
-                Email = email.ToLower(),
-                Username = username.ToLower(),
-                PasswordHash = password, // Por ahora sin hash para pruebas
-                Role = role,
-                IsActive = true
+                Name = request.Name,
+                Username = request.Username,
+                Email = request.Email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                Role = request.Role
             };
 
-            return await _userRepository.AddAsync(user, cancellationToken);
+            var addedUser = await _userRepository.AddAsync(user, cancellationToken);
+            var response = new UserResponse(addedUser.Id, addedUser.Name, addedUser.Email, addedUser.Username, addedUser.Role.ToString());
+            return (response, null);
         }
 
-        public async Task<User?> GetUserByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task<(UserResponse? User, string? Error)> UpdateUserAsync(string username, UpdateUserRequest request, CancellationToken cancellationToken = default)
         {
-            return await _userRepository.GetByIdAsync(id, cancellationToken);
+            var user = await _userRepository.GetByUsernameAsync(username, cancellationToken);
+            if (user == null)
+            {
+                return (null, "Usuario no encontrado.");
+            }
+
+            // Actualizamos solo los campos que vienen en la petición
+            if (!string.IsNullOrEmpty(request.Name)) user.Name = request.Name;
+            if (!string.IsNullOrEmpty(request.Email)) user.Email = request.Email;
+            if (!string.IsNullOrEmpty(request.Password)) user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+            if (!string.IsNullOrEmpty(request.Role) && Enum.TryParse<Role>(request.Role, true, out var role))
+            {
+                user.Role = role;
+            }
+
+            await _userRepository.UpdateUserAsync(user, cancellationToken);
+            var response = new UserResponse(user.Id, user.Name, user.Email, user.Username, user.Role.ToString());
+            return (response, null);
+        }
+
+        public async Task<(bool Success, string? Error)> DeleteUsersAsync(DeleteUsersRequest request, CancellationToken cancellationToken = default)
+        {
+            var usersToDelete = await _userRepository.GetUsersByUsernamesAsync(request.Usernames, cancellationToken);
+            if (usersToDelete.Count == 0)
+            {
+                return (false, "Ninguno de los usuarios especificados fue encontrado.");
+            }
+
+            await _userRepository.DeleteUsersAsync(usersToDelete, cancellationToken);
+            return (true, null);
         }
     }
 }
