@@ -6,7 +6,7 @@ namespace External.FakeStore.Mappers
 {
     /// <summary>
     /// Mapper para convertir entre DTOs de FakeStore y Entidades del dominio
-    /// Este mapper crea entidades que luego necesitarán ser persistidas con ExternalMapping
+    /// Este mapper crea entidades que luego necesitarï¿½n ser persistidas con ExternalMapping
     /// </summary>
     public static class FakeStoreMapper
     {
@@ -14,14 +14,14 @@ namespace External.FakeStore.Mappers
         {
             return new Product
             {
-                Title = fakeStoreProduct.title,
-                Price = fakeStoreProduct.price,
-                Description = fakeStoreProduct.description,
-                ImageUrl = fakeStoreProduct.image,
+                Title = fakeStoreProduct.Title,
+                Price = fakeStoreProduct.Price,
+                Description = fakeStoreProduct.Description,
+                ImageUrl = fakeStoreProduct.Image,
                 State = ApprovalState.PendingApproval,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
-                // CategoryId y CreatedBy necesitarán ser establecidos por el servicio que use este mapper
+                // CategoryId y CreatedBy necesitarï¿½n ser establecidos por el servicio que use este mapper
             };
         }
 
@@ -31,7 +31,7 @@ namespace External.FakeStore.Mappers
             {
                 Source = ExternalSource.FakeStore,
                 SourceType = "PRODUCT",
-                SourceId = fakeStoreProduct.id.ToString(),
+                SourceId = fakeStoreProduct.Id.ToString(),
                 InternalId = internalProductId,
                 SnapshotJson = System.Text.Json.JsonSerializer.Serialize(fakeStoreProduct),
                 ImportedAt = DateTime.UtcNow
@@ -42,15 +42,15 @@ namespace External.FakeStore.Mappers
         {
             var cart = new Cart
             {
-                UserId = Guid.NewGuid(), // Necesitarías resolver esto al UserId interno real
+                UserId = Guid.NewGuid(), // Necesitarï¿½as resolver esto al UserId interno real
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
 
-            var cartItems = fakeStoreCart.products.Select(p => new CartItem
+            var cartItems = fakeStoreCart.Products.Select(p => new CartItem
             {
-                ProductId = Guid.NewGuid(), // Necesitarías resolver esto desde ExternalMapping
-                Quantity = p.quantity,
+                ProductId = Guid.NewGuid(), // Necesitarï¿½as resolver esto desde ExternalMapping
+                Quantity = p.Quantity,
                 Cart = cart,
                 CreatedAt = DateTime.UtcNow
             }).ToList();

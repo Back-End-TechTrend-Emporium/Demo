@@ -5,32 +5,32 @@ namespace External.FakeStore.Models
 {
     public class FakeStoreProductResponse
     {
-        public int id { get; set; }
-        public string title { get; set; } = string.Empty;
-        public decimal price { get; set; }
-        public string description { get; set; } = string.Empty;
-        public string category { get; set; } = string.Empty;
-        public string image { get; set; } = string.Empty;
-        public FakeStoreRating? rating { get; set; }
+        public int Id { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public decimal Price { get; set; }
+        public string Description { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public string Image { get; set; } = string.Empty;
+        public FakeStoreRating? Rating { get; set; }
     }
 
     public class FakeStoreRating
     {
-        public double rate { get; set; }
-        public int count { get; set; }
+        public double Rate { get; set; }
+        public int Count { get; set; }
     }
 
     public class FakeStoreCartResponse
     {
-        public int id { get; set; }
-        public int userId { get; set; }
-        public DateTime date { get; set; }
-        public List<FakeStoreCartProduct> products { get; set; } = new();
+        public int Id { get; set; }
+        public int UserId { get; set; }
+        public DateTime Date { get; set; }
+        public List<FakeStoreCartProduct> Products { get; set; } = new();
     }
 
     public class FakeStoreCartProduct
     {
-        public int productId { get; set; }
-        public int quantity { get; set; }
+        public int ProductId { get; set; }
+        public int Quantity { get; set; }
     }
 }

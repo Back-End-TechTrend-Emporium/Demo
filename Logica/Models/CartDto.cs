@@ -1,3 +1,4 @@
+using Logica.Models.Category;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;

@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using Data;
 using External.FakeStore;
 using Logica.Interfaces;
@@ -7,6 +10,7 @@ using Logica.Repositories;
 using Logica.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+var configuration = builder.Configuration;
 
 // === CARGAR USER SECRETS EN PRODUCTION PARA TESTING LOCAL ===
 if (builder.Environment.IsProduction())
@@ -75,7 +79,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             errorNumbersToAdd: null)));
 
 // === HttpClient para FakeStore API ===
-builder.Services.AddHttpClient<IFakeStoreApiClient, FakeStoreApiClient>(client =>
+builder.Services.AddHttpClient<IFakeStoreApiService, FakeStoreApiService>(client =>
 {
     var fakeStoreConfig = builder.Configuration.GetSection("FakeStoreApi");
     var baseUrl = fakeStoreConfig["BaseUrl"] ?? "https://fakestoreapi.com";
@@ -85,21 +89,93 @@ builder.Services.AddHttpClient<IFakeStoreApiClient, FakeStoreApiClient>(client =
     client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 });
 
-// === Dependency Injection con Decorator Pattern ===
-// Servicios base
+// === Dependency Injection ===
+// Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
-builder.Services.AddScoped<IUserService, UserService>();
-    
-// Decorator: Registrar el servicio con persistencia
-builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
+builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
 
+// Services
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IReviewService, ReviewService>();
+
+// Authentication Services
+builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+
+// === Configuración de Autenticación JWT ===
+// Obtener la clave JWT de múltiples ubicaciones para compatibilidad con Azure
+var jwtKey = configuration["Jwt:Key"] 
+          ?? configuration["Jwt_Key"] 
+          ?? Environment.GetEnvironmentVariable("Jwt_Key")
+          ?? Environment.GetEnvironmentVariable("Jwt__Key");
+
+//Debug ayudado con la IA
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    Console.WriteLine("[ERROR] JWT Key not found in any configuration source");
+    Console.WriteLine("[DEBUG] Available JWT-related configuration:");
+    foreach (var item in configuration.AsEnumerable())
+    {
+        if (item.Key.Contains("Jwt", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"  {item.Key} = {(item.Value?.Length > 0 ? "[SET]" : "[EMPTY]")}");
+        }
+    }
+    throw new InvalidOperationException("La clave JWT no fue encontrada en ninguna ubicación válida.");
+}
+
+Console.WriteLine($"[DEBUG] JWT Key found: {jwtKey.Length} characters");
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+// === Servicios estándar de la API ===
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+// === Configuración de Swagger con soporte para JWT ===
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "TechTrendEmporium.Api", Version = "v1" });
-    // Add any additional Swagger configuration here
+    c.EnableAnnotations();
+
+    // Añade la definición de seguridad para Bearer (JWT)
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "Autorización JWT usando el esquema Bearer. Ingresa 'Bearer' [espacio] y luego tu token.",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+    
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            Array.Empty<string>()
+        }
+    });
 });
 
 var app = builder.Build();
@@ -204,7 +280,10 @@ if (swaggerEnabled)
 }
 
 app.UseHttpsRedirection();
-app.UseAuthorization();
+
+// === ¡MUY IMPORTANTE EL ORDEN! ===
+app.UseAuthentication(); // 1. Identifica quién es el usuario (lee el token).
+app.UseAuthorization();  // 2. Verifica si ese usuario tiene permisos.
 
 app.MapControllers();
 app.MapGet("/health", () => "Healthy");

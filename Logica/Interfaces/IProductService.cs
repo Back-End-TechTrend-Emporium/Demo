@@ -1,4 +1,4 @@
-using Logica.Models;
+using Logica.Models.Products;
 
 namespace Logica.Interfaces
 {
@@ -27,5 +27,7 @@ namespace Logica.Interfaces
         Task<bool> ApproveProductAsync(Guid id, Guid approvedBy);
         Task<bool> RejectProductAsync(Guid id);
         Task<IEnumerable<ProductDto>> GetPendingApprovalAsync();
+
+        Task<IEnumerable<ProductSummaryDto>> GetProductsByUserIdAsync(Guid userId);
     }
 }

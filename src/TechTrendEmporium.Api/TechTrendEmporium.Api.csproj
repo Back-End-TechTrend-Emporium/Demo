@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -24,9 +25,19 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
     <PackageReference Include="Polly.Extensions.Http" Version="3.0.0" />
     <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
+<<<<<<< HEAD
     <PackageReference Include="Serilog.Enrichers.Process" Version="3.0.0" />    
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />        
     <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.5" />       
+=======
+    <PackageReference Include="Serilog.Enrichers.Process" Version="3.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+
+    <!-- Swashbuckle principal que ya tenías -->
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.5" />
+    <!-- 🔥 Nuevo: Anotaciones para [SwaggerOperation] en la MISMA versión -->
+    <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="9.0.5" />
+>>>>>>> 86c9e896390a549513b0e036cf55701c6d9a87f3
   </ItemGroup>
 
   <ItemGroup>
@@ -36,5 +47,3 @@
   </ItemGroup>
 
 </Project>
-
-

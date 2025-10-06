@@ -22,6 +22,9 @@ namespace Logica.Interfaces
         Task<IEnumerable<Product>> GetByCategoryIdAsync(Guid categoryId);
         Task<IEnumerable<Product>> SearchAsync(string searchTerm);
         
+        // User-specific operations
+        Task<IEnumerable<Product>> GetByCreatorIdAsync(Guid userId);
+        
         // Statistics
         Task<int> GetCountAsync();
         Task<int> GetCountByStateAsync(ApprovalState state);
