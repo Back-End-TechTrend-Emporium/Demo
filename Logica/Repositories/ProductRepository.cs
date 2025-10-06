@@ -80,10 +80,8 @@ namespace Logica.Repositories
             var product = await _context.Products.FindAsync(id);
             if (product == null) return false;
 
-            // Soft delete - cambiar estado a eliminado
-            product.State = ApprovalState.Deleted;
-            product.UpdatedAt = DateTime.UtcNow;
-            _context.Products.Update(product);
+            // Full Delete 
+            _context.Products.Remove(product);
             await _context.SaveChangesAsync();
             return true;
         }
