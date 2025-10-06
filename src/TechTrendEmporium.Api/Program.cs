@@ -203,6 +203,7 @@ if (builder.Configuration.GetValue<bool>("EF:ApplyMigrationsOnStartup"))
             await context.Database.MigrateAsync();
             logger.LogInformation("Database migrations applied successfully");
         }
+        await DbSeeder.SeedUsersAsync(context, logger);
     }
     catch (Exception ex)
     {
