@@ -8,7 +8,7 @@ namespace TechTrendEmporium.Api.Controllers;
 [ApiController]
 [Route("api/user")]
 // Protegemos todo el controlador para que solo Administradores y SuperAdmins puedan acceder a la lista.
-[Authorize(Roles = "Administrator, SuperAdmin")]
+[Authorize(Roles = "Admin, SuperAdmin")]
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;

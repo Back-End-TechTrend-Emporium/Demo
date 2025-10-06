@@ -257,8 +257,6 @@ if (builder.Configuration.GetValue<bool>("EnsureSystemUser", true))
 var swaggerEnabled = builder.Configuration.GetValue<bool>("Swagger:Enabled",
                       app.Environment.IsDevelopment());
 
-// --- Configuración del Pipeline de HTTP ---
-var swaggerEnabled = configuration.GetValue<bool>("Swagger:Enabled", app.Environment.IsDevelopment());
 if (swaggerEnabled)
 {
     app.UseSwagger();
