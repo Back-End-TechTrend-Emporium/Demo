@@ -126,5 +126,78 @@ namespace External.FakeStore
                 return null;
             }
         }
+
+        // Users
+        public async Task<IEnumerable<FakeStoreUserResponse>> GetUsersAsync()
+        {
+            var response = await _httpClient.GetStringAsync("/users");
+            var fakeStoreUsers = JsonSerializer.Deserialize<List<FakeStoreUserResponse>>(response, _jsonOptions);
+            
+            return fakeStoreUsers ?? Enumerable.Empty<FakeStoreUserResponse>();
+        }
+
+        public async Task<FakeStoreUserResponse?> GetUserByIdAsync(int id)
+        {
+            try
+            {
+                var response = await _httpClient.GetStringAsync($"/users/{id}");
+                return JsonSerializer.Deserialize<FakeStoreUserResponse>(response, _jsonOptions);
+            }
+            catch (HttpRequestException)
+            {
+                return null;
+            }
+        }
+
+        public async Task<FakeStoreUserResponse?> CreateUserAsync(FakeStoreUserCreateRequest userRequest)
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(userRequest, _jsonOptions);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                
+                var response = await _httpClient.PostAsync("/users", content);
+                var responseContent = await response.Content.ReadAsStringAsync();
+                
+                return JsonSerializer.Deserialize<FakeStoreUserResponse>(responseContent, _jsonOptions);
+            }
+            catch (HttpRequestException)
+            {
+                return null;
+            }
+        }
+
+        public async Task<FakeStoreUserResponse?> UpdateUserAsync(int userId, FakeStoreUserCreateRequest userRequest)
+        {
+            try
+            {
+                var json = JsonSerializer.Serialize(userRequest, _jsonOptions);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                
+                var response = await _httpClient.PutAsync($"/users/{userId}", content);
+                var responseContent = await response.Content.ReadAsStringAsync();
+                
+                return JsonSerializer.Deserialize<FakeStoreUserResponse>(responseContent, _jsonOptions);
+            }
+            catch (HttpRequestException)
+            {
+                return null;
+            }
+        }
+
+        public async Task<FakeStoreUserResponse?> DeleteUserAsync(int userId)
+        {
+            try
+            {
+                var response = await _httpClient.DeleteAsync($"/users/{userId}");
+                var responseContent = await response.Content.ReadAsStringAsync();
+                
+                return JsonSerializer.Deserialize<FakeStoreUserResponse>(responseContent, _jsonOptions);
+            }
+            catch (HttpRequestException)
+            {
+                return null;
+            }
+        }
     }
 }

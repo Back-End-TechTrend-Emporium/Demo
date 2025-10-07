@@ -1,8 +1,13 @@
+using Data.Entities;
 using Data.Entities.Enums;
 using External.FakeStore;
 using External.FakeStore.Models;
 using Logica.Interfaces;
+using Logica.Mappers;
+using Logica.Models;
+using Logica.Models.Carts;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace Logica.Services
 {
@@ -10,328 +15,241 @@ namespace Logica.Services
     {
         private readonly IFakeStoreApiService _fakeStoreApiService;
         private readonly IExternalMappingRepository _externalMappingRepository;
-        // private readonly ICartRepository _cartRepository; // TODO: Uncomment when CartRepository is implemented
+        private readonly ICartRepository _cartRepository;
         private readonly ILogger<CartService> _logger;
 
         public CartService(
             IFakeStoreApiService fakeStoreApiService,
             IExternalMappingRepository externalMappingRepository,
-            // ICartRepository cartRepository, // TODO: Uncomment when CartRepository is implemented
+            ICartRepository cartRepository,
             ILogger<CartService> logger)
         {
             _fakeStoreApiService = fakeStoreApiService ?? throw new ArgumentNullException(nameof(fakeStoreApiService));
             _externalMappingRepository = externalMappingRepository ?? throw new ArgumentNullException(nameof(externalMappingRepository));
-            // _cartRepository = cartRepository ?? throw new ArgumentNullException(nameof(cartRepository)); // TODO: Uncomment when implemented
+            _cartRepository = cartRepository ?? throw new ArgumentNullException(nameof(cartRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        // === FakeStore API Operations ===
+        // === Sync Operations ===
 
-        public async Task<IEnumerable<FakeStoreCartResponse>> GetCartsFromFakeStoreAsync()
+        public async Task<CartSyncResultDto> SyncCartFromFakeStoreAsync(int fakeStoreCartId, Guid createdBy)
         {
+            var result = new CartSyncResultDto
+            {
+                FakeStoreCartId = fakeStoreCartId
+            };
+
             try
             {
-                _logger.LogInformation("Iniciando obtención de todos los carts desde FakeStore API");
+                _logger.LogInformation("=== INICIO SINCRONIZACIÓN ===");
+                _logger.LogInformation("Iniciando sincronización del cart {CartId} desde FakeStore", fakeStoreCartId);
+
+                // 1. Verificar si ya existe en la BD local
+                _logger.LogInformation("Paso 1: Verificando si cart ya existe en BD local");
+                var existingCart = await _cartRepository.GetCartByExternalIdAsync(fakeStoreCartId.ToString(), ExternalSource.FakeStore);
+                if (existingCart != null)
+                {
+                    _logger.LogInformation("Cart {CartId} ya existe en BD local", fakeStoreCartId);
+                    result.Success = false;
+                    result.Message = $"Cart {fakeStoreCartId} ya existe en la base de datos local con ID {existingCart.Id}";
+                    result.LocalCartId = existingCart.Id;
+                    return result;
+                }
+
+                // 2. Obtener cart desde FakeStore
+                _logger.LogInformation("Paso 2: Obteniendo cart desde FakeStore API");
+                var fakeStoreCart = await _fakeStoreApiService.GetCartByIdAsync(fakeStoreCartId);
+                if (fakeStoreCart == null)
+                {
+                    _logger.LogWarning("Cart {CartId} no encontrado en FakeStore API", fakeStoreCartId);
+                    result.Success = false;
+                    result.Message = $"Cart {fakeStoreCartId} no encontrado en FakeStore API";
+                    return result;
+                }
+
+                _logger.LogInformation("Cart obtenido desde FakeStore: UserId={UserId}, ProductCount={ProductCount}", 
+                    fakeStoreCart.UserId, fakeStoreCart.Products?.Count ?? 0);
+
+                // 3. Validar que los productos existen en la BD local
+                _logger.LogInformation("Paso 3: Validando productos en BD local");
+                var productIds = fakeStoreCart.Products?.Select(p => p.ProductId).ToList() ?? new List<int>();
+                if (productIds.Any())
+                {
+                    _logger.LogInformation("Productos a validar: {ProductIds}", string.Join(", ", productIds));
+                    
+                    var productMappings = await MapFakeStoreProductIdsToLocalAsync(productIds);
+                    var invalidIds = productIds.Where(id => !productMappings.ContainsKey(id)).ToList();
+                    
+                    if (invalidIds.Any())
+                    {
+                        _logger.LogWarning("Productos no encontrados en BD local: {InvalidIds}", string.Join(", ", invalidIds));
+                        result.Success = false;
+                        result.Message = $"Los siguientes productos no existen en la BD local: {string.Join(", ", invalidIds)}";
+                        result.InvalidProductIds = invalidIds;
+                        return result;
+                    }
+
+                    _logger.LogInformation("Todos los productos existen en BD local");
+
+                    // 4. Crear cart local
+                    _logger.LogInformation("Paso 4: Creando cart local");
+                    var localCart = await CreateLocalCartFromFakeStore(fakeStoreCart, productMappings, createdBy);
+                    
+                    // 5. Crear mapeo externo
+                    _logger.LogInformation("Paso 5: Creando mapeo externo");
+                    var snapshot = JsonSerializer.Serialize(fakeStoreCart);
+                    await _cartRepository.CreateCartMappingAsync(fakeStoreCartId.ToString(), localCart.Id, ExternalSource.FakeStore, snapshot);
+
+                    result.Success = true;
+                    result.Message = "Cart sincronizado exitosamente";
+                    result.LocalCartId = localCart.Id;
+                    result.ProductsSynced = productIds.Count;
+
+                    _logger.LogInformation("=== SINCRONIZACIÓN EXITOSA ===");
+                    _logger.LogInformation("Cart {FakeStoreCartId} sincronizado exitosamente como {LocalCartId}", 
+                        fakeStoreCartId, localCart.Id);
+                }
+                else
+                {
+                    _logger.LogWarning("Cart {CartId} está vacío", fakeStoreCartId);
+                    result.Success = false;
+                    result.Message = "Cart vacío, no se puede sincronizar";
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "=== ERROR EN SINCRONIZACIÓN ===");
+                _logger.LogError(ex, "Error sincronizando cart {CartId} desde FakeStore. Detalles: {Message}", fakeStoreCartId, ex.Message);
+                _logger.LogError("Stack trace: {StackTrace}", ex.StackTrace);
                 
+                result.Success = false;
+                result.Message = $"Error interno: {ex.Message}";
+                result.Errors.Add(ex.Message);
+                
+                if (ex.InnerException != null)
+                {
+                    _logger.LogError("Inner exception: {InnerMessage}", ex.InnerException.Message);
+                    result.Errors.Add($"Inner: {ex.InnerException.Message}");
+                }
+                
+                return result;
+            }
+        }
+
+        public async Task<CartSyncBatchResultDto> SyncAllCartsFromFakeStoreAsync(Guid createdBy)
+        {
+            var batchResult = new CartSyncBatchResultDto();
+
+            try
+            {
+                _logger.LogInformation("Iniciando sincronización masiva de carts desde FakeStore API");
+
+                // 1. Obtener todos los carts de FakeStore
                 var fakeStoreCarts = await _fakeStoreApiService.GetCartsAsync();
-                
-                _logger.LogInformation("Se obtuvieron {Count} carts desde FakeStore API", fakeStoreCarts?.Count() ?? 0);
-                return fakeStoreCarts ?? Enumerable.Empty<FakeStoreCartResponse>();
-            }
-            catch (HttpRequestException httpEx)
-            {
-                _logger.LogError(httpEx, "Error de conectividad al obtener carts de FakeStore API");
-                throw new InvalidOperationException("Error de conectividad con FakeStore API. Verifica la conexión a internet.", httpEx);
-            }
-            catch (TaskCanceledException tcEx) when (tcEx.InnerException is TimeoutException)
-            {
-                _logger.LogError(tcEx, "Timeout al obtener carts de FakeStore API");
-                throw new TimeoutException("La solicitud a FakeStore API ha excedido el tiempo límite.", tcEx);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error inesperado al obtener carts de FakeStore API");
-                throw new InvalidOperationException("Error interno al obtener carts de FakeStore API.", ex);
-            }
-        }
+                var cartsList = fakeStoreCarts.ToList();
 
-        public async Task<FakeStoreCartResponse?> GetCartFromFakeStoreAsync(int cartId)
-        {
-            try
-            {
-                if (cartId <= 0)
+                batchResult.TotalCartsProcessed = cartsList.Count;
+
+                // 2. Sincronizar cada cart
+                foreach (var fakeStoreCart in cartsList)
                 {
-                    _logger.LogWarning("Intento de obtener cart con ID inválido: {CartId}", cartId);
-                    throw new ArgumentException("El ID del cart debe ser mayor a 0", nameof(cartId));
-                }
+                    var syncResult = await SyncCartFromFakeStoreAsync(fakeStoreCart.Id, createdBy);
+                    batchResult.Results.Add(syncResult);
 
-                _logger.LogInformation("Obteniendo cart {CartId} desde FakeStore API", cartId);
-                
-                var fakeStoreCart = await _fakeStoreApiService.GetCartByIdAsync(cartId);
-                
-                if (fakeStoreCart == null)
-                {
-                    _logger.LogInformation("Cart {CartId} no encontrado en FakeStore API", cartId);
-                    return null;
-                }
-
-                _logger.LogInformation("Cart {CartId} obtenido exitosamente desde FakeStore API con {ProductCount} productos", 
-                    cartId, fakeStoreCart.Products?.Count ?? 0);
-                return fakeStoreCart;
-            }
-            catch (ArgumentException)
-            {
-                throw; // Re-throw argument exceptions as they are
-            }
-            catch (HttpRequestException httpEx)
-            {
-                _logger.LogError(httpEx, "Error de conectividad al obtener cart {CartId} de FakeStore API", cartId);
-                throw new InvalidOperationException($"Error de conectividad al obtener cart {cartId} de FakeStore API.", httpEx);
-            }
-            catch (TaskCanceledException tcEx) when (tcEx.InnerException is TimeoutException)
-            {
-                _logger.LogError(tcEx, "Timeout al obtener cart {CartId} de FakeStore API", cartId);
-                throw new TimeoutException($"La solicitud para obtener cart {cartId} ha excedido el tiempo límite.", tcEx);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error inesperado al obtener cart {CartId} de FakeStore API", cartId);
-                throw new InvalidOperationException($"Error interno al obtener cart {cartId} de FakeStore API.", ex);
-            }
-        }
-
-        public async Task<FakeStoreCartResponse?> CreateCartInFakeStoreAsync(FakeStoreCartCreateRequest cartRequest)
-        {
-            try
-            {
-                if (cartRequest == null)
-                {
-                    throw new ArgumentNullException(nameof(cartRequest), "La solicitud de creación de cart no puede ser nula");
-                }
-
-                if (cartRequest.UserId <= 0)
-                {
-                    throw new ArgumentException("El ID del usuario debe ser mayor a 0", nameof(cartRequest.UserId));
-                }
-
-                // Validar que los productos existen en la base de datos local
-                if (cartRequest.Products?.Any() == true)
-                {
-                    var productIds = cartRequest.Products.Select(p => p.ProductId).ToList();
-                    var validationResult = await ValidateProductsExistInLocalDbAsync(productIds);
-                    
-                    if (!validationResult)
+                    if (syncResult.Success)
                     {
-                        var invalidIds = await GetInvalidProductIds(productIds);
-                        _logger.LogWarning("Intento de crear cart con productos que no existen en la BD local: {InvalidIds}", 
-                            string.Join(", ", invalidIds));
-                        throw new InvalidOperationException($"Los siguientes productos de FakeStore no existen en la base de datos local: {string.Join(", ", invalidIds)}");
+                        batchResult.CartsSuccessful++;
+                    }
+                    else
+                    {
+                        batchResult.CartsFailed++;
                     }
                 }
 
-                _logger.LogInformation("Creando nuevo cart en FakeStore API para usuario {UserId} con {ProductCount} productos", 
-                    cartRequest.UserId, cartRequest.Products?.Count ?? 0);
-                
-                var fakeStoreCart = await _fakeStoreApiService.CreateCartAsync(cartRequest);
-                
-                if (fakeStoreCart == null)
-                {
-                    _logger.LogWarning("FakeStore API retornó null al crear cart para usuario {UserId}", cartRequest.UserId);
-                    throw new InvalidOperationException("Error al crear cart en FakeStore API - respuesta nula");
-                }
+                batchResult.Success = batchResult.CartsSuccessful > 0;
+                batchResult.Message = $"Sincronización completada: {batchResult.CartsSuccessful} exitosos, {batchResult.CartsFailed} fallidos";
 
-                _logger.LogInformation("Cart creado exitosamente en FakeStore API con ID {CartId}", fakeStoreCart.Id);
-                return fakeStoreCart;
-            }
-            catch (ArgumentException)
-            {
-                throw; // Re-throw argument exceptions as they are
-            }
-            catch (InvalidOperationException)
-            {
-                throw; // Re-throw business logic exceptions as they are
-            }
-            catch (HttpRequestException httpEx)
-            {
-                _logger.LogError(httpEx, "Error de conectividad al crear cart en FakeStore API");
-                throw new InvalidOperationException("Error de conectividad al crear cart en FakeStore API.", httpEx);
-            }
-            catch (TaskCanceledException tcEx) when (tcEx.InnerException is TimeoutException)
-            {
-                _logger.LogError(tcEx, "Timeout al crear cart en FakeStore API");
-                throw new TimeoutException("La solicitud para crear cart ha excedido el tiempo límite.", tcEx);
+                _logger.LogInformation("Sincronización masiva completada: {Successful}/{Total} carts sincronizados", 
+                    batchResult.CartsSuccessful, batchResult.TotalCartsProcessed);
+
+                return batchResult;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error inesperado al crear cart en FakeStore API");
-                throw new InvalidOperationException("Error interno al crear cart en FakeStore API.", ex);
+                _logger.LogError(ex, "Error en sincronización masiva de carts desde FakeStore");
+                batchResult.Success = false;
+                batchResult.Message = $"Error interno en sincronización masiva: {ex.Message}";
+                return batchResult;
             }
         }
 
-        public async Task<FakeStoreCartResponse?> UpdateCartInFakeStoreAsync(int cartId, FakeStoreCartUpdateRequest cartRequest)
+        public async Task<CartDto?> ImportCartFromFakeStoreAsync(int fakeStoreCartId, Guid targetUserId, Guid createdBy)
         {
             try
             {
-                if (cartId <= 0)
-                {
-                    throw new ArgumentException("El ID del cart debe ser mayor a 0", nameof(cartId));
-                }
+                _logger.LogInformation("Importando cart {CartId} desde FakeStore para usuario {UserId}", fakeStoreCartId, targetUserId);
 
-                if (cartRequest == null)
-                {
-                    throw new ArgumentNullException(nameof(cartRequest), "La solicitud de actualización de cart no puede ser nula");
-                }
-
-                if (cartRequest.UserId <= 0)
-                {
-                    throw new ArgumentException("El ID del usuario debe ser mayor a 0", nameof(cartRequest.UserId));
-                }
-
-                // Validar que los productos existen en la base de datos local
-                if (cartRequest.Products?.Any() == true)
-                {
-                    var productIds = cartRequest.Products.Select(p => p.ProductId).ToList();
-                    var validationResult = await ValidateProductsExistInLocalDbAsync(productIds);
-                    
-                    if (!validationResult)
-                    {
-                        var invalidIds = await GetInvalidProductIds(productIds);
-                        _logger.LogWarning("Intento de actualizar cart {CartId} con productos que no existen en la BD local: {InvalidIds}", 
-                            cartId, string.Join(", ", invalidIds));
-                        throw new InvalidOperationException($"Los siguientes productos de FakeStore no existen en la base de datos local: {string.Join(", ", invalidIds)}");
-                    }
-                }
-
-                _logger.LogInformation("Actualizando cart {CartId} en FakeStore API para usuario {UserId}", 
-                    cartId, cartRequest.UserId);
-                
-                var fakeStoreCart = await _fakeStoreApiService.UpdateCartAsync(cartId, cartRequest);
-                
+                // 1. Obtener cart desde FakeStore
+                var fakeStoreCart = await _fakeStoreApiService.GetCartByIdAsync(fakeStoreCartId);
                 if (fakeStoreCart == null)
                 {
-                    _logger.LogWarning("Cart {CartId} no encontrado al intentar actualizar en FakeStore API", cartId);
+                    _logger.LogWarning("Cart {CartId} no encontrado en FakeStore", fakeStoreCartId);
                     return null;
                 }
 
-                _logger.LogInformation("Cart {CartId} actualizado exitosamente en FakeStore API", cartId);
-                return fakeStoreCart;
-            }
-            catch (ArgumentException)
-            {
-                throw; // Re-throw argument exceptions as they are
-            }
-            catch (InvalidOperationException)
-            {
-                throw; // Re-throw business logic exceptions as they are
-            }
-            catch (HttpRequestException httpEx)
-            {
-                _logger.LogError(httpEx, "Error de conectividad al actualizar cart {CartId} en FakeStore API", cartId);
-                throw new InvalidOperationException($"Error de conectividad al actualizar cart {cartId} en FakeStore API.", httpEx);
-            }
-            catch (TaskCanceledException tcEx) when (tcEx.InnerException is TimeoutException)
-            {
-                _logger.LogError(tcEx, "Timeout al actualizar cart {CartId} en FakeStore API", cartId);
-                throw new TimeoutException($"La solicitud para actualizar cart {cartId} ha excedido el tiempo límite.", tcEx);
+                // 2. Validar productos
+                var productIds = fakeStoreCart.Products?.Select(p => p.ProductId).ToList() ?? new List<int>();
+                var productMappings = await MapFakeStoreProductIdsToLocalAsync(productIds);
+                
+                if (productIds.Count != productMappings.Count)
+                {
+                    throw new InvalidOperationException("Algunos productos no existen en la base de datos local");
+                }
+
+                // 3. Crear cart para el usuario específico (no crear mapeo externo)
+                var localCart = await CreateLocalCartFromFakeStore(fakeStoreCart, productMappings, createdBy, targetUserId);
+
+                _logger.LogInformation("Cart {FakeStoreCartId} importado exitosamente como {LocalCartId} para usuario {UserId}", 
+                    fakeStoreCartId, localCart.Id, targetUserId);
+
+                return localCart.ToCartDto();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error inesperado al actualizar cart {CartId} en FakeStore API", cartId);
-                throw new InvalidOperationException($"Error interno al actualizar cart {cartId} en FakeStore API.", ex);
+                _logger.LogError(ex, "Error importando cart {CartId} desde FakeStore", fakeStoreCartId);
+                throw;
             }
         }
 
-        public async Task<FakeStoreCartResponse?> DeleteCartInFakeStoreAsync(int cartId)
-        {
-            try
-            {
-                if (cartId <= 0)
-                {
-                    throw new ArgumentException("El ID del cart debe ser mayor a 0", nameof(cartId));
-                }
+        // === Helper Methods ===
 
-                _logger.LogInformation("Eliminando cart {CartId} en FakeStore API", cartId);
-                
-                var fakeStoreCart = await _fakeStoreApiService.DeleteCartAsync(cartId);
-                
-                if (fakeStoreCart == null)
-                {
-                    _logger.LogWarning("Cart {CartId} no encontrado al intentar eliminar en FakeStore API", cartId);
-                    return null;
-                }
-
-                _logger.LogInformation("Cart {CartId} eliminado exitosamente en FakeStore API", cartId);
-                return fakeStoreCart;
-            }
-            catch (ArgumentException)
-            {
-                throw; // Re-throw argument exceptions as they are
-            }
-            catch (HttpRequestException httpEx)
-            {
-                _logger.LogError(httpEx, "Error de conectividad al eliminar cart {CartId} en FakeStore API", cartId);
-                throw new InvalidOperationException($"Error de conectividad al eliminar cart {cartId} en FakeStore API.", httpEx);
-            }
-            catch (TaskCanceledException tcEx) when (tcEx.InnerException is TimeoutException)
-            {
-                _logger.LogError(tcEx, "Timeout al eliminar cart {CartId} en FakeStore API", cartId);
-                throw new TimeoutException($"La solicitud para eliminar cart {cartId} ha excedido el tiempo límite.", tcEx);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error inesperado al eliminar cart {CartId} en FakeStore API", cartId);
-                throw new InvalidOperationException($"Error interno al eliminar cart {cartId} en FakeStore API.", ex);
-            }
-        }
-
-        // === Product Validation for FakeStore Operations ===
-
-        public async Task<bool> ValidateProductsExistInLocalDbAsync(IEnumerable<int> fakeStoreProductIds)
+        private async Task<Dictionary<int, Guid>> MapFakeStoreProductIdsToLocalAsync(IEnumerable<int> fakeStoreProductIds)
         {
             try
             {
                 if (!fakeStoreProductIds?.Any() == true)
                 {
-                    return true; // Cart vacío es válido
-                }
-
-                _logger.LogInformation("Validando existencia de {Count} productos de FakeStore en la BD local", 
-                    fakeStoreProductIds.Count());
-
-                var sourceIds = fakeStoreProductIds.Select(id => id.ToString()).ToList();
-                var mappings = await _externalMappingRepository.GetInternalIdMappingsAsync(
-                    sourceIds, ExternalSource.FakeStore, "PRODUCT");
-
-                var existingCount = mappings.Count;
-                var requestedCount = sourceIds.Count;
-
-                _logger.LogInformation("Se encontraron {ExistingCount} de {RequestedCount} productos en la BD local", 
-                    existingCount, requestedCount);
-
-                return existingCount == requestedCount;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error validando productos en la BD local");
-                throw new InvalidOperationException("Error interno validando productos.", ex);
-            }
-        }
-
-        public async Task<Dictionary<int, Guid>> MapFakeStoreProductIdsToLocalAsync(IEnumerable<int> fakeStoreProductIds)
-        {
-            try
-            {
-                if (!fakeStoreProductIds?.Any() == true)
-                {
+                    _logger.LogInformation("No hay productos para mapear");
                     return new Dictionary<int, Guid>();
                 }
 
                 _logger.LogInformation("Mapeando {Count} IDs de productos de FakeStore a IDs locales", 
                     fakeStoreProductIds.Count());
+                _logger.LogDebug("IDs a mapear: {ProductIds}", string.Join(", ", fakeStoreProductIds));
 
                 var sourceIds = fakeStoreProductIds.Select(id => id.ToString()).ToList();
+                
+                _logger.LogDebug("Consultando mappings para sourceIds: {SourceIds}", string.Join(", ", sourceIds));
                 var mappings = await _externalMappingRepository.GetInternalIdMappingsAsync(
                     sourceIds, ExternalSource.FakeStore, "PRODUCT");
+
+                _logger.LogInformation("Mappings encontrados: {MappingCount}", mappings.Count);
+                foreach (var mapping in mappings)
+                {
+                    _logger.LogDebug("Mapping: {SourceId} -> {InternalId}", mapping.Key, mapping.Value);
+                }
 
                 var result = new Dictionary<int, Guid>();
                 foreach (var mapping in mappings)
@@ -339,6 +257,11 @@ namespace Logica.Services
                     if (int.TryParse(mapping.Key, out var fakeStoreId))
                     {
                         result[fakeStoreId] = mapping.Value;
+                        _logger.LogDebug("Agregado al resultado: {FakeStoreId} -> {LocalId}", fakeStoreId, mapping.Value);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("No se pudo parsear SourceId: {SourceId}", mapping.Key);
                     }
                 }
 
@@ -349,32 +272,74 @@ namespace Logica.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error mapeando IDs de productos");
+                _logger.LogError(ex, "Error mapeando IDs de productos. Detalles: {Message}", ex.Message);
+                _logger.LogError("Stack trace: {StackTrace}", ex.StackTrace);
                 throw new InvalidOperationException("Error interno mapeando productos.", ex);
             }
         }
 
-        // === Private Helper Methods ===
-
-        private async Task<IEnumerable<int>> GetInvalidProductIds(IEnumerable<int> fakeStoreProductIds)
+        private async Task<Cart> CreateLocalCartFromFakeStore(
+            FakeStoreCartResponse fakeStoreCart, 
+            Dictionary<int, Guid> productMappings, 
+            Guid createdBy, 
+            Guid? specificUserId = null)
         {
-            try
-            {
-                var sourceIds = fakeStoreProductIds.Select(id => id.ToString()).ToList();
-                var mappings = await _externalMappingRepository.GetInternalIdMappingsAsync(
-                    sourceIds, ExternalSource.FakeStore, "PRODUCT");
+            // Usar el usuario del sistema por defecto (el que se crea en Program.cs)
+            var systemUserId = new Guid("00000000-0000-0000-0000-000000000001");
+            var finalUserId = specificUserId ?? systemUserId;
+            
+            _logger.LogInformation("Creando cart local para usuario: {UserId} (FakeStore UserId original: {FakeStoreUserId})", 
+                finalUserId, fakeStoreCart.UserId);
 
-                var existingFakeStoreIds = mappings.Keys.Select(int.Parse).ToHashSet();
-                return fakeStoreProductIds.Where(id => !existingFakeStoreIds.Contains(id));
-            }
-            catch (Exception ex)
+            // Crear cart local
+            var localCart = new Cart
             {
-                _logger.LogError(ex, "Error obteniendo IDs de productos inválidos");
-                return fakeStoreProductIds; // Return all as invalid if we can't determine
+                UserId = finalUserId,
+                Status = CartStatus.Active,
+                CreatedAt = fakeStoreCart.Date,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            // Agregar items del cart
+            foreach (var fakeStoreProduct in fakeStoreCart.Products ?? new List<FakeStoreCartProduct>())
+            {
+                if (productMappings.TryGetValue(fakeStoreProduct.ProductId, out var localProductId))
+                {
+                    var cartItem = new CartItem
+                    {
+                        CartId = localCart.Id,
+                        ProductId = localProductId,
+                        Quantity = fakeStoreProduct.Quantity,
+                        UnitPriceSnapshot = 0, // TODO: obtener precio del producto local
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    localCart.CartItems.Add(cartItem);
+                    _logger.LogDebug("Agregado item: Producto {ProductId}, Cantidad {Quantity}", 
+                        localProductId, fakeStoreProduct.Quantity);
+                }
+                else
+                {
+                    _logger.LogWarning("Producto FakeStore {ProductId} no encontrado en mappings", fakeStoreProduct.ProductId);
+                }
             }
+
+            // Calcular totales (simplificado)
+            localCart.TotalBeforeDiscount = localCart.CartItems.Sum(ci => ci.UnitPriceSnapshot * ci.Quantity);
+            localCart.FinalTotal = localCart.TotalBeforeDiscount;
+
+            _logger.LogInformation("Cart local creado con {ItemCount} items, Total: {Total}", 
+                localCart.CartItems.Count, localCart.FinalTotal);
+
+            return await _cartRepository.CreateCartAsync(localCart);
         }
 
-        // === TODO: Local Cart Operations - Implement when CartRepository is ready ===
-        // (Los métodos comentados permanecen igual)
+        private static Guid ConvertIntToGuid(int id)
+        {
+            var bytes = new byte[16];
+            var idBytes = BitConverter.GetBytes(id);
+            Array.Copy(idBytes, 0, bytes, 0, 4);
+            return new Guid(bytes);
+        }
     }
 }

@@ -1,4 +1,3 @@
-using Logica.Models.Category;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -12,22 +11,25 @@ namespace Logica.Models
     {
         public Guid Id { get; set; }
         
-        public Guid UserId { get; set; }
+        public string UserId { get; set; } = string.Empty;
         
-        public string Status { get; set; } = string.Empty;
+        public List<int> ShoppingCart { get; set; } = new();
+        
+        public CouponAppliedDto? CouponApplied { get; set; }
         
         public decimal TotalBeforeDiscount { get; set; }
         
-        public decimal DiscountAmount { get; set; }
+        public decimal TotalAfterDiscount { get; set; }
         
         public decimal ShippingCost { get; set; }
         
         public decimal FinalTotal { get; set; }
+    }
+
+    public class CouponAppliedDto
+    {
+        public string CouponCode { get; set; } = string.Empty;
         
-        public DateTime CreatedAt { get; set; }
-        
-        public required IReadOnlyList<CartItemDto> Products { get; set; }
-        
-        public string? CouponCode { get; set; }
+        public decimal DiscountPercentage { get; set; }
     }
 }

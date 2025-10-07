@@ -15,8 +15,4 @@
     <ProjectReference Include="..\External\External.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Models\Carts\" />
-  </ItemGroup>
-
 </Project>

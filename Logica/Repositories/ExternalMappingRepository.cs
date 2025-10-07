@@ -37,5 +37,20 @@ namespace Logica.Repositories
             var mappings = await GetMappingsBySourceIdsAsync(sourceIds, source, sourceType);
             return mappings.ToDictionary(m => m.SourceId, m => m.InternalId);
         }
+
+        public async Task<ExternalMapping?> GetByExternalIdAsync(ExternalSource source, string sourceType, string sourceId)
+        {
+            return await _context.ExternalMappings
+                .FirstOrDefaultAsync(em => em.Source == source && 
+                                          em.SourceType == sourceType && 
+                                          em.SourceId == sourceId);
+        }
+
+        public async Task<ExternalMapping> CreateAsync(ExternalMapping mapping)
+        {
+            _context.ExternalMappings.Add(mapping);
+            await _context.SaveChangesAsync();
+            return mapping;
+        }
     }
 }
