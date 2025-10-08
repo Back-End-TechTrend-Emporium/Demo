@@ -1,6 +1,7 @@
 using Logica.Interfaces;
 using Logica.Models.Category;
 using Logica.Models.Products;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace TechTrendEmporium.Api.Controllers
@@ -55,6 +56,7 @@ namespace TechTrendEmporium.Api.Controllers
 
       
         [HttpPost]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<CategoryCreateResponseDto>> CreateCategory(CategoryCreateDto categoryDto)
         {
             try
@@ -142,6 +144,7 @@ namespace TechTrendEmporium.Api.Controllers
 
        
         [HttpPut]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<CategoryResponseDto>> UpdateCategory(CategoryUpdateDto categoryDto)
         {
             try
@@ -176,6 +179,7 @@ namespace TechTrendEmporium.Api.Controllers
         }
 
         [HttpDelete]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<CategoryResponseDto>> DeleteCategory(CategoryDeleteDto deleteDto)
         {
             try
@@ -221,6 +225,11 @@ namespace TechTrendEmporium.Api.Controllers
                 
                 return Forbid("Insufficient permissions to delete categories");
             }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "Invalid operation for this category {CategoryId}", deleteDto.Id);
+                return NotFound(ex.Message); // Returns 404 Not Found with the exception message
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error deleting category {CategoryId}", deleteDto.Id);
@@ -229,6 +238,7 @@ namespace TechTrendEmporium.Api.Controllers
         }
 
         [HttpGet("all")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<IEnumerable<CategoryDto>>> GetAllCategories()
         {
             try
@@ -246,6 +256,7 @@ namespace TechTrendEmporium.Api.Controllers
 
        
         [HttpGet("pending-approval")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<IEnumerable<CategoryDto>>> GetPendingApproval()
         {
             try
@@ -271,6 +282,7 @@ namespace TechTrendEmporium.Api.Controllers
 
        
         [HttpPost("{id:guid}/approve")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult> ApproveCategory(Guid id)
         {
             try
@@ -301,6 +313,7 @@ namespace TechTrendEmporium.Api.Controllers
 
        
         [HttpPost("{id:guid}/reject")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult> RejectCategory(Guid id)
         {
             try

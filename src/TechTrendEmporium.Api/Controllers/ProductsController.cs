@@ -180,6 +180,11 @@ namespace TechTrendEmporium.Api.Controllers
                 };
                 return Ok(response);
             }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "Operación inválida al eliminar producto {ProductId}", id);
+                return NotFound(ex.Message); // Returns 404 if the product is already deleted
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al eliminar producto {ProductId}", id);

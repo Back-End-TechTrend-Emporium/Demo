@@ -90,15 +90,17 @@ builder.Services.AddHttpClient<IFakeStoreApiService, FakeStoreApiService>(client
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
-builder.Services.AddScoped<IWishlistRepository, WishlistRepository>(); //IA: Agregar registro de WishlistRepository
+builder.Services.AddScoped<IWishlistRepository, WishlistRepository>(); 
 builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
-
+builder.Services.AddScoped<ICartRepository, CartRepository>(); 
+builder.Services.AddScoped<IExternalMappingRepository, ExternalMappingRepository>(); 
 // Services
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
-builder.Services.AddScoped<IWishlistService, WishlistService>(); //IA: Agregar registro de WishlistService
+builder.Services.AddScoped<IWishlistService, WishlistService>(); 
 builder.Services.AddScoped<IReviewService, ReviewService>();
+builder.Services.AddScoped<ICartService, CartService>(); 
 
 // Authentication Services
 builder.Services.AddScoped<ITokenService, TokenService>();

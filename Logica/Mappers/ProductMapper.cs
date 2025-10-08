@@ -77,24 +77,24 @@ namespace Logica.Mappers
             return new CartDto
             {
                 Id = cart.Id,
-                UserId = cart.UserId,
-                Status = cart.Status.ToString(),
-                TotalBeforeDiscount = cart.TotalBeforeDiscount,
-                DiscountAmount = cart.DiscountAmount,
-                ShippingCost = cart.ShippingCost,
-                FinalTotal = cart.FinalTotal,
-                CreatedAt = cart.CreatedAt,
-                CouponCode = cart.AppliedCoupon?.Code,
-                Products = cart.CartItems?.Select(ci => new CartItemDto
+                UserId = cart.UserId.ToString(),
+                ShoppingCart = cart.CartItems?.Select(ci => ConvertGuidToInt(ci.ProductId)).ToList() ?? new List<int>(),
+                CouponApplied = cart.AppliedCoupon != null ? new CouponAppliedDto
                 {
-                    ProductId = ci.ProductId,
-                    Quantity = ci.Quantity,
-                    ProductTitle = ci.TitleSnapshot,
-                    UnitPrice = ci.UnitPriceSnapshot,
-                    ProductImage = ci.ImageUrlSnapshot,
-                    TotalPrice = ci.UnitPriceSnapshot * ci.Quantity
-                }).ToList() ?? new List<CartItemDto>()
+                    CouponCode = cart.AppliedCoupon.Code,
+                    DiscountPercentage = cart.AppliedCoupon.DiscountPercentage
+                } : null,
+                TotalBeforeDiscount = cart.TotalBeforeDiscount,
+                TotalAfterDiscount = cart.TotalBeforeDiscount - cart.DiscountAmount,
+                ShippingCost = cart.ShippingCost,
+                FinalTotal = cart.FinalTotal
             };
+        }
+
+        private static int ConvertGuidToInt(Guid guid)
+        {
+            var bytes = guid.ToByteArray();
+            return BitConverter.ToInt32(bytes, 0);
         }
 
         public static ProductSummaryDto ToSummaryDto(Product product)

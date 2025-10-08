@@ -79,9 +79,14 @@ namespace Logica.Repositories
         {
             var product = await _context.Products.FindAsync(id);
             if (product == null) return false;
+            //Avoid deleting already deleted products
+            if (product.State == ApprovalState.Deleted)
+                throw new InvalidOperationException("Product already deleted.");
 
-            // Full Delete 
-            _context.Products.Remove(product);
+            // Soft delete - change state to deleted
+            product.State = ApprovalState.Deleted;
+            product.UpdatedAt = DateTime.UtcNow;
+            _context.Products.Update(product);
             await _context.SaveChangesAsync();
             return true;
         }
