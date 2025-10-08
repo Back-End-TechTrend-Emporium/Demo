@@ -45,7 +45,7 @@ namespace Logica.Repositories
             var cart = await _context.Carts.FindAsync(cartId);
             if (cart == null) return false;
 
-            // Soft delete - cambiar estado
+            // Soft delete - change status
             cart.Status = CartStatus.Abandoned;
             cart.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();

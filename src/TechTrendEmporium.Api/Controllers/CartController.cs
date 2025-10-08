@@ -22,10 +22,10 @@ namespace TechTrendEmporium.Api.Controllers
 
         // POST api/cart/sync-from-fakestore/{cartId}
         [HttpPost("sync-from-fakestore/{cartId:int}")]
-        // [Authorize] // <- descomenta si quieres exigir token
+        // [Authorize] // <- uncomment if you want to require token
         [SwaggerOperation(
-            Summary = "Sincronizar cart específico desde FakeStore a BD local",
-            Description = "Sincroniza un cart específico desde FakeStore API hacia la base de datos local",
+            Summary = "Sync specific cart from FakeStore to local DB",
+            Description = "Synchronizes a specific cart from FakeStore API to the local database",
             Tags = new[] { "Cart - Sync" }
         )]
         [ProducesResponseType(typeof(CartSyncResultDto), StatusCodes.Status200OK)]
@@ -37,33 +37,33 @@ namespace TechTrendEmporium.Api.Controllers
             {
                 if (cartId <= 0)
                 {
-                    return BadRequest("El ID del cart debe ser mayor a 0");
+                    return BadRequest("Cart ID must be greater than 0");
                 }
 
-                // TODO: Obtener el ID del usuario actual del JWT
-                var createdBy = new Guid("00000000-0000-0000-0000-000000000001"); // Usuario sistema por ahora
+                // TODO: Get current user ID from JWT
+                var createdBy = new Guid("00000000-0000-0000-0000-000000000001"); // System user for now
 
-                _logger.LogInformation("Iniciando sincronización del cart {CartId} desde FakeStore", cartId);
+                _logger.LogInformation("Starting cart {CartId} sync from FakeStore", cartId);
                 var result = await _cartService.SyncCartFromFakeStoreAsync(cartId, createdBy);
 
                 if (result.Success)
                 {
-                    _logger.LogInformation("Cart {CartId} sincronizado exitosamente como {LocalCartId}", 
+                    _logger.LogInformation("Cart {CartId} synced successfully as {LocalCartId}", 
                         cartId, result.LocalCartId);
                     return Ok(result);
                 }
                 else
                 {
-                    _logger.LogWarning("Fallo en sincronización del cart {CartId}: {Message}", 
+                    _logger.LogWarning("Cart {CartId} sync failed: {Message}", 
                         cartId, result.Message);
                     return BadRequest(result);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sincronizando cart {CartId} desde FakeStore", cartId);
+                _logger.LogError(ex, "Error syncing cart {CartId} from FakeStore", cartId);
                 return StatusCode(StatusCodes.Status500InternalServerError, 
-                    $"Error interno sincronizando cart {cartId}");
+                    $"Internal error syncing cart {cartId}");
             }
         }
 
@@ -71,8 +71,8 @@ namespace TechTrendEmporium.Api.Controllers
         [HttpPost("sync-all-from-fakestore")]
         // [Authorize]
         [SwaggerOperation(
-            Summary = "Sincronizar todos los carts desde FakeStore a BD local",
-            Description = "Sincroniza todos los carts disponibles desde FakeStore API hacia la base de datos local",
+            Summary = "Sync all carts from FakeStore to local DB",
+            Description = "Synchronizes all available carts from FakeStore API to the local database",
             Tags = new[] { "Cart - Sync" }
         )]
         [ProducesResponseType(typeof(CartSyncBatchResultDto), StatusCodes.Status200OK)]
@@ -81,22 +81,22 @@ namespace TechTrendEmporium.Api.Controllers
         {
             try
             {
-                // TODO: Obtener el ID del usuario actual del JWT
-                var createdBy = new Guid("00000000-0000-0000-0000-000000000001"); // Usuario sistema por ahora
+                // TODO: Get current user ID from JWT
+                var createdBy = new Guid("00000000-0000-0000-0000-000000000001"); // System user for now
 
-                _logger.LogInformation("Iniciando sincronización masiva de carts desde FakeStore");
+                _logger.LogInformation("Starting bulk cart sync from FakeStore");
                 var result = await _cartService.SyncAllCartsFromFakeStoreAsync(createdBy);
 
-                _logger.LogInformation("Sincronización masiva completada: {Successful}/{Total} carts", 
+                _logger.LogInformation("Bulk sync completed: {Successful}/{Total} carts", 
                     result.CartsSuccessful, result.TotalCartsProcessed);
                 
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error en sincronización masiva de carts desde FakeStore");
+                _logger.LogError(ex, "Error in bulk cart sync from FakeStore");
                 return StatusCode(StatusCodes.Status500InternalServerError, 
-                    "Error interno en sincronización masiva");
+                    "Internal error in bulk synchronization");
             }
         }
 
@@ -104,8 +104,8 @@ namespace TechTrendEmporium.Api.Controllers
         [HttpPost("import-from-fakestore/{cartId:int}")]
         // [Authorize]
         [SwaggerOperation(
-            Summary = "Importar cart desde FakeStore para usuario actual",
-            Description = "Importa un cart específico desde FakeStore API y lo asigna al usuario actual",
+            Summary = "Import cart from FakeStore for current user",
+            Description = "Imports a specific cart from FakeStore API and assigns it to the current user",
             Tags = new[] { "Cart - Import" }
         )]
         [ProducesResponseType(typeof(CartDto), StatusCodes.Status201Created)]
@@ -118,38 +118,38 @@ namespace TechTrendEmporium.Api.Controllers
             {
                 if (cartId <= 0)
                 {
-                    return BadRequest("El ID del cart debe ser mayor a 0");
+                    return BadRequest("Cart ID must be greater than 0");
                 }
 
-                // TODO: Obtener el ID del usuario actual del JWT
-                var currentUserId = new Guid("00000000-0000-0000-0000-000000000001"); // Usuario sistema por ahora
+                // TODO: Get current user ID from JWT
+                var currentUserId = new Guid("00000000-0000-0000-0000-000000000001"); // System user for now
                 var createdBy = currentUserId;
 
-                _logger.LogInformation("Importando cart {CartId} desde FakeStore para usuario {UserId}", 
+                _logger.LogInformation("Importing cart {CartId} from FakeStore for user {UserId}", 
                     cartId, currentUserId);
                 
                 var importedCart = await _cartService.ImportCartFromFakeStoreAsync(cartId, currentUserId, createdBy);
 
                 if (importedCart == null)
                 {
-                    return NotFound($"Cart con ID {cartId} no encontrado en FakeStore o no se pudo importar");
+                    return NotFound($"Cart with ID {cartId} not found in FakeStore or could not be imported");
                 }
 
-                _logger.LogInformation("Cart {CartId} importado exitosamente para usuario {UserId}", 
+                _logger.LogInformation("Cart {CartId} imported successfully for user {UserId}", 
                     cartId, currentUserId);
                 
                 return CreatedAtAction("GetCart", new { cartId = importedCart.Id }, importedCart);
             }
             catch (InvalidOperationException invEx)
             {
-                _logger.LogWarning(invEx, "No se pudo importar cart {CartId}: {Message}", cartId, invEx.Message);
+                _logger.LogWarning(invEx, "Could not import cart {CartId}: {Message}", cartId, invEx.Message);
                 return BadRequest(invEx.Message);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error importando cart {CartId} desde FakeStore", cartId);
+                _logger.LogError(ex, "Error importing cart {CartId} from FakeStore", cartId);
                 return StatusCode(StatusCodes.Status500InternalServerError, 
-                    $"Error interno importando cart {cartId}");
+                    $"Internal error importing cart {cartId}");
             }
         }
     }

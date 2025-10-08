@@ -6,7 +6,7 @@ using Logica.Models.Products;
 namespace Logica.Mappers
 {
     /// <summary>
-    /// Mapper para convertir entre Entidades de dominio y DTOs de dominio
+    /// Mapper to convert between domain entities and domain DTOs
     /// </summary>
     public static class ProductMapper
     {
@@ -14,7 +14,7 @@ namespace Logica.Mappers
         {
             return new ProductDto   
             {
-                Id = product.Id, // ✅ Usar directamente el GUID
+                Id = product.Id, // ✅ Use GUID directly
                 Title = product.Title,
                 Price = product.Price,
                 Description = product.Description ?? string.Empty,
@@ -104,7 +104,7 @@ namespace Logica.Mappers
                 Id = product.Id,
                 Title = product.Title,
                 Price = product.Price,
-                Category = product.Category?.Name ?? "Sin categoría"
+                Category = product.Category?.Name ?? "No category"
             };
         }
     }

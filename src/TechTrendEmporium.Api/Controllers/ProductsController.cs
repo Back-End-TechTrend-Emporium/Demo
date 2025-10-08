@@ -25,14 +25,14 @@ namespace TechTrendEmporium.Api.Controllers
         {
             try
             {
-                var userId = GetCurrentUserId(); // Del JWT cuando esté implementado
+                var userId = GetCurrentUserId(); // From JWT when implemented
                 var products = await _productService.GetProductsByUserIdAsync(userId);
                 return Ok(products);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener productos del usuario");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting user products");
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -54,8 +54,8 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener todos los productos");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting all products");
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -69,8 +69,8 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener productos aprobados");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting approved products");
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -84,15 +84,15 @@ namespace TechTrendEmporium.Api.Controllers
 
                 if (product == null)
                 {
-                    return NotFound($"Producto con ID {id} no encontrado");
+                    return NotFound($"Product with ID {id} not found");
                 }
 
                 return Ok(product);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener producto {ProductId}", id);
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting product {ProductId}", id);
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -116,7 +116,7 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al crear producto");
+                _logger.LogError(ex, "Error creating product");
 
                 var errorResponse = new ProductCreateResponseDto
                 {
@@ -138,20 +138,20 @@ namespace TechTrendEmporium.Api.Controllers
 
                 if (product == null)
                 {
-                    return NotFound($"Producto con ID {id} no encontrado");
+                    return NotFound($"Product with ID {id} not found");
                 }
 
                 var response = new ProductResponseDto
                 {
-                    Message = "Updated successfuly"
+                    Message = "Updated successfully"
                 };
 
                 return Ok(response);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al actualizar producto {ProductId}", id);
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error updating product {ProductId}", id);
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -165,19 +165,19 @@ namespace TechTrendEmporium.Api.Controllers
 
                 if (!success)
                 {
-                    return NotFound($"Producto con ID {id} no encontrado");
+                    return NotFound($"Product with ID {id} not found");
                 }
 
                 var response = new ProductResponseDto
                 {
-                    Message = "Deleted successfuly "
+                    Message = "Deleted successfully"
                 };
                 return Ok(response);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al eliminar producto {ProductId}", id);
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error deleting product {ProductId}", id);
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -189,7 +189,7 @@ namespace TechTrendEmporium.Api.Controllers
             {
                 if (string.IsNullOrWhiteSpace(searchTerm))
                 {
-                    return BadRequest("El término de búsqueda es requerido");
+                    return BadRequest("Search term is required");
                 }
 
                 var products = await _productService.SearchProductsAsync(searchTerm);
@@ -197,14 +197,14 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error en búsqueda de productos");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error searching products");
+                return StatusCode(500, "Internal server error");
             }
         }
 
 
 
-        // uso de la fake store
+        // FakeStore usage
 
 
         [HttpGet("fakestore")]
@@ -217,8 +217,8 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener productos de FakeStore");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting products from FakeStore");
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -232,15 +232,15 @@ namespace TechTrendEmporium.Api.Controllers
 
                 if (product == null)
                 {
-                    return NotFound($"Producto con ID {id} no encontrado en FakeStore");
+                    return NotFound($"Product with ID {id} not found in FakeStore");
                 }
 
                 return Ok(product);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener producto {ProductId} de FakeStore", id);
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting product {ProductId} from FakeStore", id);
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -254,8 +254,8 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener categorías de FakeStore");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting categories from FakeStore");
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -269,8 +269,8 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener productos de categoría {Category} de FakeStore", category);
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting products from category {Category} in FakeStore", category);
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -289,15 +289,15 @@ namespace TechTrendEmporium.Api.Controllers
 
                 return Ok(new
                 {
-                    Message = "Sincronización completada exitosamente",
+                    Message = "Synchronization completed successfully",
                     ImportedCount = importedCount,
                     Timestamp = DateTime.UtcNow
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error en sincronización desde FakeStore");
-                return StatusCode(500, "Error durante la sincronización");
+                _logger.LogError(ex, "Error syncing from FakeStore");
+                return StatusCode(500, "Error during synchronization");
             }
         }
 
@@ -312,15 +312,15 @@ namespace TechTrendEmporium.Api.Controllers
 
                 if (product == null)
                 {
-                    return NotFound($"Producto con ID {fakeStoreId} no encontrado en FakeStore");
+                    return NotFound($"Product with ID {fakeStoreId} not found in FakeStore");
                 }
 
                 return Ok(product);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error importando producto {ProductId} desde FakeStore", fakeStoreId);
-                return StatusCode(500, "Error durante la importación");
+                _logger.LogError(ex, "Error importing product {ProductId} from FakeStore", fakeStoreId);
+                return StatusCode(500, "Error during import");
             }
         }
 
@@ -339,8 +339,8 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener productos pendientes de aprobación");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting products pending approval");
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -355,15 +355,15 @@ namespace TechTrendEmporium.Api.Controllers
 
                 if (!success)
                 {
-                    return NotFound($"Producto con ID {id} no encontrado");
+                    return NotFound($"Product with ID {id} not found");
                 }
 
-                return Ok(new { Message = "Producto aprobado exitosamente" });
+                return Ok(new { Message = "Product approved successfully" });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al aprobar producto {ProductId}", id);
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error approving product {ProductId}", id);
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -377,15 +377,15 @@ namespace TechTrendEmporium.Api.Controllers
 
                 if (!success)
                 {
-                    return NotFound($"Producto con ID {id} no encontrado");
+                    return NotFound($"Product with ID {id} not found");
                 }
 
-                return Ok(new { Message = "Producto rechazado exitosamente" });
+                return Ok(new { Message = "Product rejected successfully" });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al rechazar producto {ProductId}", id);
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error rejecting product {ProductId}", id);
+                return StatusCode(500, "Internal server error");
             }
         }
 

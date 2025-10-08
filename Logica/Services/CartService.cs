@@ -41,91 +41,91 @@ namespace Logica.Services
 
             try
             {
-                _logger.LogInformation("=== INICIO SINCRONIZACIÓN ===");
-                _logger.LogInformation("Iniciando sincronización del cart {CartId} desde FakeStore", fakeStoreCartId);
+                _logger.LogInformation("=== SYNC START ===");
+                _logger.LogInformation("Starting cart {CartId} sync from FakeStore", fakeStoreCartId);
 
-                // 1. Verificar si ya existe en la BD local
-                _logger.LogInformation("Paso 1: Verificando si cart ya existe en BD local");
+                // 1. Check if already exists in local DB
+                _logger.LogInformation("Step 1: Checking if cart already exists in local DB");
                 var existingCart = await _cartRepository.GetCartByExternalIdAsync(fakeStoreCartId.ToString(), ExternalSource.FakeStore);
                 if (existingCart != null)
                 {
-                    _logger.LogInformation("Cart {CartId} ya existe en BD local", fakeStoreCartId);
+                    _logger.LogInformation("Cart {CartId} already exists in local DB", fakeStoreCartId);
                     result.Success = false;
-                    result.Message = $"Cart {fakeStoreCartId} ya existe en la base de datos local con ID {existingCart.Id}";
+                    result.Message = $"Cart {fakeStoreCartId} already exists in local database with ID {existingCart.Id}";
                     result.LocalCartId = existingCart.Id;
                     return result;
                 }
 
-                // 2. Obtener cart desde FakeStore
-                _logger.LogInformation("Paso 2: Obteniendo cart desde FakeStore API");
+                // 2. Get cart from FakeStore
+                _logger.LogInformation("Step 2: Getting cart from FakeStore API");
                 var fakeStoreCart = await _fakeStoreApiService.GetCartByIdAsync(fakeStoreCartId);
                 if (fakeStoreCart == null)
                 {
-                    _logger.LogWarning("Cart {CartId} no encontrado en FakeStore API", fakeStoreCartId);
+                    _logger.LogWarning("Cart {CartId} not found in FakeStore API", fakeStoreCartId);
                     result.Success = false;
-                    result.Message = $"Cart {fakeStoreCartId} no encontrado en FakeStore API";
+                    result.Message = $"Cart {fakeStoreCartId} not found in FakeStore API";
                     return result;
                 }
 
-                _logger.LogInformation("Cart obtenido desde FakeStore: UserId={UserId}, ProductCount={ProductCount}", 
+                _logger.LogInformation("Cart obtained from FakeStore: UserId={UserId}, ProductCount={ProductCount}", 
                     fakeStoreCart.UserId, fakeStoreCart.Products?.Count ?? 0);
 
-                // 3. Validar que los productos existen en la BD local
-                _logger.LogInformation("Paso 3: Validando productos en BD local");
+                // 3. Validate that products exist in local DB
+                _logger.LogInformation("Step 3: Validating products in local DB");
                 var productIds = fakeStoreCart.Products?.Select(p => p.ProductId).ToList() ?? new List<int>();
                 if (productIds.Any())
                 {
-                    _logger.LogInformation("Productos a validar: {ProductIds}", string.Join(", ", productIds));
+                    _logger.LogInformation("Products to validate: {ProductIds}", string.Join(", ", productIds));
                     
                     var productMappings = await MapFakeStoreProductIdsToLocalAsync(productIds);
                     var invalidIds = productIds.Where(id => !productMappings.ContainsKey(id)).ToList();
                     
                     if (invalidIds.Any())
                     {
-                        _logger.LogWarning("Productos no encontrados en BD local: {InvalidIds}", string.Join(", ", invalidIds));
+                        _logger.LogWarning("Products not found in local DB: {InvalidIds}", string.Join(", ", invalidIds));
                         result.Success = false;
-                        result.Message = $"Los siguientes productos no existen en la BD local: {string.Join(", ", invalidIds)}";
+                        result.Message = $"The following products do not exist in the local DB: {string.Join(", ", invalidIds)}";
                         result.InvalidProductIds = invalidIds;
                         return result;
                     }
 
-                    _logger.LogInformation("Todos los productos existen en BD local");
+                    _logger.LogInformation("All products exist in local DB");
 
-                    // 4. Crear cart local
-                    _logger.LogInformation("Paso 4: Creando cart local");
+                    // 4. Create local cart
+                    _logger.LogInformation("Step 4: Creating local cart");
                     var localCart = await CreateLocalCartFromFakeStore(fakeStoreCart, productMappings, createdBy);
                     
-                    // 5. Crear mapeo externo
-                    _logger.LogInformation("Paso 5: Creando mapeo externo");
+                    // 5. Create external mapping
+                    _logger.LogInformation("Step 5: Creating external mapping");
                     var snapshot = JsonSerializer.Serialize(fakeStoreCart);
                     await _cartRepository.CreateCartMappingAsync(fakeStoreCartId.ToString(), localCart.Id, ExternalSource.FakeStore, snapshot);
 
                     result.Success = true;
-                    result.Message = "Cart sincronizado exitosamente";
+                    result.Message = "Cart synced successfully";
                     result.LocalCartId = localCart.Id;
                     result.ProductsSynced = productIds.Count;
 
-                    _logger.LogInformation("=== SINCRONIZACIÓN EXITOSA ===");
-                    _logger.LogInformation("Cart {FakeStoreCartId} sincronizado exitosamente como {LocalCartId}", 
+                    _logger.LogInformation("=== SYNC SUCCESSFUL ===");
+                    _logger.LogInformation("Cart {FakeStoreCartId} synced successfully as {LocalCartId}", 
                         fakeStoreCartId, localCart.Id);
                 }
                 else
                 {
-                    _logger.LogWarning("Cart {CartId} está vacío", fakeStoreCartId);
+                    _logger.LogWarning("Cart {CartId} is empty", fakeStoreCartId);
                     result.Success = false;
-                    result.Message = "Cart vacío, no se puede sincronizar";
+                    result.Message = "Empty cart, cannot sync";
                 }
 
                 return result;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "=== ERROR EN SINCRONIZACIÓN ===");
-                _logger.LogError(ex, "Error sincronizando cart {CartId} desde FakeStore. Detalles: {Message}", fakeStoreCartId, ex.Message);
+                _logger.LogError(ex, "=== SYNC ERROR ===");
+                _logger.LogError(ex, "Error syncing cart {CartId} from FakeStore. Details: {Message}", fakeStoreCartId, ex.Message);
                 _logger.LogError("Stack trace: {StackTrace}", ex.StackTrace);
                 
                 result.Success = false;
-                result.Message = $"Error interno: {ex.Message}";
+                result.Message = $"Internal error: {ex.Message}";
                 result.Errors.Add(ex.Message);
                 
                 if (ex.InnerException != null)
@@ -144,15 +144,15 @@ namespace Logica.Services
 
             try
             {
-                _logger.LogInformation("Iniciando sincronización masiva de carts desde FakeStore API");
+                _logger.LogInformation("Starting bulk cart sync from FakeStore API");
 
-                // 1. Obtener todos los carts de FakeStore
+                // 1. Get all carts from FakeStore
                 var fakeStoreCarts = await _fakeStoreApiService.GetCartsAsync();
                 var cartsList = fakeStoreCarts.ToList();
 
                 batchResult.TotalCartsProcessed = cartsList.Count;
 
-                // 2. Sincronizar cada cart
+                // 2. Sync each cart
                 foreach (var fakeStoreCart in cartsList)
                 {
                     var syncResult = await SyncCartFromFakeStoreAsync(fakeStoreCart.Id, createdBy);
@@ -169,18 +169,18 @@ namespace Logica.Services
                 }
 
                 batchResult.Success = batchResult.CartsSuccessful > 0;
-                batchResult.Message = $"Sincronización completada: {batchResult.CartsSuccessful} exitosos, {batchResult.CartsFailed} fallidos";
+                batchResult.Message = $"Sync completed: {batchResult.CartsSuccessful} successful, {batchResult.CartsFailed} failed";
 
-                _logger.LogInformation("Sincronización masiva completada: {Successful}/{Total} carts sincronizados", 
+                _logger.LogInformation("Bulk sync completed: {Successful}/{Total} carts synced", 
                     batchResult.CartsSuccessful, batchResult.TotalCartsProcessed);
 
                 return batchResult;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error en sincronización masiva de carts desde FakeStore");
+                _logger.LogError(ex, "Error in bulk cart sync from FakeStore");
                 batchResult.Success = false;
-                batchResult.Message = $"Error interno en sincronización masiva: {ex.Message}";
+                batchResult.Message = $"Internal error in bulk sync: {ex.Message}";
                 return batchResult;
             }
         }
@@ -189,36 +189,36 @@ namespace Logica.Services
         {
             try
             {
-                _logger.LogInformation("Importando cart {CartId} desde FakeStore para usuario {UserId}", fakeStoreCartId, targetUserId);
+                _logger.LogInformation("Importing cart {CartId} from FakeStore for user {UserId}", fakeStoreCartId, targetUserId);
 
-                // 1. Obtener cart desde FakeStore
+                // 1. Get cart from FakeStore
                 var fakeStoreCart = await _fakeStoreApiService.GetCartByIdAsync(fakeStoreCartId);
                 if (fakeStoreCart == null)
                 {
-                    _logger.LogWarning("Cart {CartId} no encontrado en FakeStore", fakeStoreCartId);
+                    _logger.LogWarning("Cart {CartId} not found in FakeStore", fakeStoreCartId);
                     return null;
                 }
 
-                // 2. Validar productos
+                // 2. Validate products
                 var productIds = fakeStoreCart.Products?.Select(p => p.ProductId).ToList() ?? new List<int>();
                 var productMappings = await MapFakeStoreProductIdsToLocalAsync(productIds);
                 
                 if (productIds.Count != productMappings.Count)
                 {
-                    throw new InvalidOperationException("Algunos productos no existen en la base de datos local");
+                    throw new InvalidOperationException("Some products do not exist in the local database");
                 }
 
-                // 3. Crear cart para el usuario específico (no crear mapeo externo)
+                // 3. Create cart for specific user (do not create external mapping)
                 var localCart = await CreateLocalCartFromFakeStore(fakeStoreCart, productMappings, createdBy, targetUserId);
 
-                _logger.LogInformation("Cart {FakeStoreCartId} importado exitosamente como {LocalCartId} para usuario {UserId}", 
+                _logger.LogInformation("Cart {FakeStoreCartId} imported successfully as {LocalCartId} for user {UserId}", 
                     fakeStoreCartId, localCart.Id, targetUserId);
 
                 return localCart.ToCartDto();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error importando cart {CartId} desde FakeStore", fakeStoreCartId);
+                _logger.LogError(ex, "Error importing cart {CartId} from FakeStore", fakeStoreCartId);
                 throw;
             }
         }
@@ -231,21 +231,21 @@ namespace Logica.Services
             {
                 if (!fakeStoreProductIds?.Any() == true)
                 {
-                    _logger.LogInformation("No hay productos para mapear");
+                    _logger.LogInformation("No products to map");
                     return new Dictionary<int, Guid>();
                 }
 
-                _logger.LogInformation("Mapeando {Count} IDs de productos de FakeStore a IDs locales", 
+                _logger.LogInformation("Mapping {Count} FakeStore product IDs to local IDs", 
                     fakeStoreProductIds.Count());
-                _logger.LogDebug("IDs a mapear: {ProductIds}", string.Join(", ", fakeStoreProductIds));
+                _logger.LogDebug("IDs to map: {ProductIds}", string.Join(", ", fakeStoreProductIds));
 
                 var sourceIds = fakeStoreProductIds.Select(id => id.ToString()).ToList();
                 
-                _logger.LogDebug("Consultando mappings para sourceIds: {SourceIds}", string.Join(", ", sourceIds));
+                _logger.LogDebug("Querying mappings for sourceIds: {SourceIds}", string.Join(", ", sourceIds));
                 var mappings = await _externalMappingRepository.GetInternalIdMappingsAsync(
                     sourceIds, ExternalSource.FakeStore, "PRODUCT");
 
-                _logger.LogInformation("Mappings encontrados: {MappingCount}", mappings.Count);
+                _logger.LogInformation("Mappings found: {MappingCount}", mappings.Count);
                 foreach (var mapping in mappings)
                 {
                     _logger.LogDebug("Mapping: {SourceId} -> {InternalId}", mapping.Key, mapping.Value);
@@ -257,24 +257,24 @@ namespace Logica.Services
                     if (int.TryParse(mapping.Key, out var fakeStoreId))
                     {
                         result[fakeStoreId] = mapping.Value;
-                        _logger.LogDebug("Agregado al resultado: {FakeStoreId} -> {LocalId}", fakeStoreId, mapping.Value);
+                        _logger.LogDebug("Added to result: {FakeStoreId} -> {LocalId}", fakeStoreId, mapping.Value);
                     }
                     else
                     {
-                        _logger.LogWarning("No se pudo parsear SourceId: {SourceId}", mapping.Key);
+                        _logger.LogWarning("Could not parse SourceId: {SourceId}", mapping.Key);
                     }
                 }
 
-                _logger.LogInformation("Se mapearon {MappedCount} de {RequestedCount} productos", 
+                _logger.LogInformation("Mapped {MappedCount} of {RequestedCount} products", 
                     result.Count, fakeStoreProductIds.Count());
 
                 return result;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error mapeando IDs de productos. Detalles: {Message}", ex.Message);
+                _logger.LogError(ex, "Error mapping product IDs. Details: {Message}", ex.Message);
                 _logger.LogError("Stack trace: {StackTrace}", ex.StackTrace);
-                throw new InvalidOperationException("Error interno mapeando productos.", ex);
+                throw new InvalidOperationException("Internal error mapping products.", ex);
             }
         }
 
@@ -284,14 +284,14 @@ namespace Logica.Services
             Guid createdBy, 
             Guid? specificUserId = null)
         {
-            // Usar el usuario del sistema por defecto (el que se crea en Program.cs)
+            // Use system user by default (created in Program.cs)
             var systemUserId = new Guid("00000000-0000-0000-0000-000000000001");
             var finalUserId = specificUserId ?? systemUserId;
             
-            _logger.LogInformation("Creando cart local para usuario: {UserId} (FakeStore UserId original: {FakeStoreUserId})", 
+            _logger.LogInformation("Creating local cart for user: {UserId} (original FakeStore UserId: {FakeStoreUserId})", 
                 finalUserId, fakeStoreCart.UserId);
 
-            // Crear cart local
+            // Create local cart
             var localCart = new Cart
             {
                 UserId = finalUserId,
@@ -300,7 +300,7 @@ namespace Logica.Services
                 UpdatedAt = DateTime.UtcNow
             };
 
-            // Agregar items del cart
+            // Add cart items
             foreach (var fakeStoreProduct in fakeStoreCart.Products ?? new List<FakeStoreCartProduct>())
             {
                 if (productMappings.TryGetValue(fakeStoreProduct.ProductId, out var localProductId))
@@ -310,25 +310,25 @@ namespace Logica.Services
                         CartId = localCart.Id,
                         ProductId = localProductId,
                         Quantity = fakeStoreProduct.Quantity,
-                        UnitPriceSnapshot = 0, // TODO: obtener precio del producto local
+                        UnitPriceSnapshot = 0, // TODO: get price from local product
                         CreatedAt = DateTime.UtcNow
                     };
 
                     localCart.CartItems.Add(cartItem);
-                    _logger.LogDebug("Agregado item: Producto {ProductId}, Cantidad {Quantity}", 
+                    _logger.LogDebug("Added item: Product {ProductId}, Quantity {Quantity}", 
                         localProductId, fakeStoreProduct.Quantity);
                 }
                 else
                 {
-                    _logger.LogWarning("Producto FakeStore {ProductId} no encontrado en mappings", fakeStoreProduct.ProductId);
+                    _logger.LogWarning("FakeStore product {ProductId} not found in mappings", fakeStoreProduct.ProductId);
                 }
             }
 
-            // Calcular totales (simplificado)
+            // Calculate totals (simplified)
             localCart.TotalBeforeDiscount = localCart.CartItems.Sum(ci => ci.UnitPriceSnapshot * ci.Quantity);
             localCart.FinalTotal = localCart.TotalBeforeDiscount;
 
-            _logger.LogInformation("Cart local creado con {ItemCount} items, Total: {Total}", 
+            _logger.LogInformation("Local cart created with {ItemCount} items, Total: {Total}", 
                 localCart.CartItems.Count, localCart.FinalTotal);
 
             return await _cartRepository.CreateCartAsync(localCart);
