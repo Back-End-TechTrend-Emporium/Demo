@@ -6,6 +6,7 @@ using Logica.Interfaces;
 using Logica.Mappers;
 using Logica.Models;
 using Logica.Models.Carts;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
@@ -440,6 +441,583 @@ namespace Logica.Services
             }
         }
 
+        // === OPERACIONES CENTRADAS EN USUARIO (LÓGICA REAL) ===
+
+        public async Task<IEnumerable<CartDto>> GetCartsByUserIdAsync(Guid userId)
+        {
+            try
+            {
+                var carts = await _cartRepository.GetCartsByUserIdAsync(userId);
+                return carts.Select(c => c.ToCartDtoExtended());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting carts for user {UserId}", userId);
+                throw;
+            }
+        }
+
+        public async Task<CartDto?> GetActiveCartByUserIdAsync(Guid userId)
+        {
+            try
+            {
+                var cart = await _cartRepository.GetActiveCartByUserIdAsync(userId);
+                return cart?.ToCartDtoExtended();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting active cart for user {UserId}", userId);
+                throw;
+            }
+        }
+
+        public async Task<CartDto> CreateEmptyCartForUserAsync(Guid userId)
+        {
+            try
+            {
+                var cart = new Cart
+                {
+                    UserId = userId,
+                    Status = CartStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    TotalBeforeDiscount = 0,
+                    DiscountAmount = 0,
+                    ShippingCost = 0,
+                    FinalTotal = 0
+                };
+
+                var createdCart = await _cartRepository.CreateCartAsync(cart);
+                return createdCart.ToCartDtoExtended();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating empty cart for user {UserId}", userId);
+                throw;
+            }
+        }
+
+        public async Task<CartDto> AddItemToUserCartAsync(Guid userId, AddItemToCartRequest request)
+        {
+            try
+            {
+                _logger.LogInformation("? User {UserId} adding item {ProductId} quantity {Quantity}", 
+                    userId, request.ProductId, request.Quantity);
+
+                // 1. Obtener o crear carrito activo
+                var cart = await _cartRepository.GetActiveCartByUserIdAsync(userId);
+                if (cart == null)
+                {
+                    _logger.LogInformation("Creating new cart for user {UserId}", userId);
+                    cart = await CreateEmptyCartForUser(userId);
+                }
+
+                // 2. Verificar que el producto existe
+                var product = await _productRepository.GetByIdAsync(request.ProductId);
+                if (product == null)
+                {
+                    throw new InvalidOperationException($"Product {request.ProductId} not found");
+                }
+
+                // 3. Verificar si el item ya existe en el carrito
+                var existingItem = cart.CartItems.FirstOrDefault(ci => ci.ProductId == request.ProductId);
+                var currentQuantityInCart = existingItem?.Quantity ?? 0;
+                var newTotalQuantity = currentQuantityInCart + request.Quantity;
+
+                // ? VALIDAR DISPONIBILIDAD PARA RESERVAR
+                if (product.InventoryAvailable < request.Quantity)
+                {
+                    throw new InvalidOperationException(
+                        $"Not enough available stock for product '{product.Title}'. " +
+                        $"Available: {product.InventoryAvailable}, Requested: {request.Quantity}");
+                }
+
+                // ? RESERVAR STOCK (Available ? Reserved)
+                product.InventoryAvailable -= request.Quantity;
+                // Nota: No sumamos a Reserved aquí porque Product no tiene ese campo
+                // El Reserved se calcula como (Total - Available)
+                product.UpdatedAt = DateTime.UtcNow;
+                await _productRepository.UpdateAsync(product);
+
+                _logger.LogInformation("?? Reserved {Quantity} units for product {ProductTitle}. " +
+                    "Available: {PreviousAvailable} ? {NewAvailable}", 
+                    request.Quantity, product.Title, 
+                    product.InventoryAvailable + request.Quantity, product.InventoryAvailable);
+
+                // 4. Agregar/actualizar item en carrito
+                await _cartRepository.AddOrUpdateCartItemAsync(
+                    cart.Id,
+                    request.ProductId,
+                    newTotalQuantity,
+                    product.Price,
+                    product.Title,
+                    product.ImageUrl,
+                    product.Category?.Name
+                );
+
+                _logger.LogInformation("?? Item added/updated. Total quantity in cart: {TotalQuantity}", newTotalQuantity);
+
+                // 5. Recalcular y actualizar totales del carrito
+                var updatedCart = await _cartRepository.GetCartByIdAsync(cart.Id);
+                if (updatedCart != null)
+                {
+                    var totalBeforeDiscount = updatedCart.CartItems.Sum(ci => ci.UnitPriceSnapshot * ci.Quantity);
+                    var finalTotal = totalBeforeDiscount - updatedCart.DiscountAmount + updatedCart.ShippingCost;
+                    
+                    await _cartRepository.UpdateCartTotalsAsync(
+                        cart.Id,
+                        totalBeforeDiscount,
+                        updatedCart.DiscountAmount,
+                        updatedCart.ShippingCost,
+                        finalTotal
+                    );
+                }
+
+                // 6. Obtener carrito final actualizado
+                var finalCart = await _cartRepository.GetCartByIdAsync(cart.Id);
+                
+                _logger.LogInformation("? Item added successfully to cart {CartId} with stock reserved", cart.Id);
+                
+                return finalCart!.ToCartDtoExtended();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "?? Error adding item to cart for user {UserId}", userId);
+                throw;
+            }
+        }
+
+        public async Task<CartDto> UpdateItemInUserCartAsync(Guid userId, UpdateCartItemQuantityRequest request)
+        {
+            try
+            {
+                _logger.LogInformation("?? User {UserId} updating item {ProductId} to quantity {Quantity}", 
+                    userId, request.ProductId, request.Quantity);
+
+                // 1. Obtener carrito activo del usuario
+                var cart = await _cartRepository.GetActiveCartByUserIdAsync(userId);
+                if (cart == null)
+                {
+                    throw new InvalidOperationException("User has no active cart");
+                }
+
+                // 2. Verificar que el item existe en el carrito
+                var existingItem = cart.CartItems.FirstOrDefault(ci => ci.ProductId == request.ProductId);
+                if (existingItem == null)
+                {
+                    throw new InvalidOperationException("Product not found in cart");
+                }
+
+                // 3. Obtener producto para manejar stock
+                var product = await _productRepository.GetByIdAsync(request.ProductId);
+                if (product == null)
+                {
+                    throw new InvalidOperationException("Product not found");
+                }
+
+                var currentQuantityInCart = existingItem.Quantity;
+                var quantityDifference = request.Quantity - currentQuantityInCart;
+
+                // 4. Manejar cambios de reserva de stock
+                if (quantityDifference > 0)
+                {
+                    // Aumentar cantidad - necesitamos reservar más stock
+                    if (product.InventoryAvailable < quantityDifference)
+                    {
+                        throw new InvalidOperationException(
+                            $"Not enough available stock for product '{product.Title}'. " +
+                            $"Available: {product.InventoryAvailable}, Additional needed: {quantityDifference}");
+                    }
+                    
+                    // Reservar stock adicional
+                    product.InventoryAvailable -= quantityDifference;
+                    _logger.LogInformation("?? Reserved additional {Quantity} units for product {ProductTitle}", 
+                        quantityDifference, product.Title);
+                }
+                else if (quantityDifference < 0)
+                {
+                    // Reducir cantidad - devolver stock a disponible CON VALIDACIÓN
+                    var quantityToRelease = Math.Abs(quantityDifference);
+                    var newAvailableStock = product.InventoryAvailable + quantityToRelease;
+                    
+                    // ? VALIDAR CONSTRAINT: Available no puede superar Total
+                    if (newAvailableStock > product.InventoryTotal)
+                    {
+                        var maxAvailableStock = product.InventoryTotal;
+                        var actualStockToRelease = Math.Max(0, maxAvailableStock - product.InventoryAvailable);
+                        
+                        product.InventoryAvailable = maxAvailableStock;
+                        
+                        _logger.LogWarning("?? Stock release limited for product {ProductTitle}. " +
+                            "Requested to release: {RequestedRelease}, Actual released: {ActualRelease}", 
+                            product.Title, quantityToRelease, actualStockToRelease);
+                    }
+                    else
+                    {
+                        product.InventoryAvailable = newAvailableStock;
+                        _logger.LogInformation("?? Released {Quantity} units back to available for product {ProductTitle}", 
+                            quantityToRelease, product.Title);
+                    }
+                }
+
+                // 5. Si quantity es 0 o negativa, eliminar el item
+                if (request.Quantity <= 0)
+                {
+                    // Liberar todo el stock reservado CON VALIDACIÓN
+                    var stockToRelease = currentQuantityInCart;
+                    var newAvailableStock = product.InventoryAvailable + stockToRelease;
+                    
+                    // ? VALIDAR CONSTRAINT: Available no puede superar Total
+                    if (newAvailableStock > product.InventoryTotal)
+                    {
+                        var maxAvailableStock = product.InventoryTotal;
+                        product.InventoryAvailable = maxAvailableStock;
+                        
+                        _logger.LogWarning("?? Stock release limited when removing item for product {ProductTitle}. " +
+                            "Available set to maximum: {MaxAvailable} (Total: {Total})", 
+                            product.Title, maxAvailableStock, product.InventoryTotal);
+                    }
+                    else
+                    {
+                        product.InventoryAvailable = newAvailableStock;
+                        _logger.LogInformation("?? Released {Quantity} units when removing item for product {ProductTitle}", 
+                            stockToRelease, product.Title);
+                    }
+                    
+                    product.UpdatedAt = DateTime.UtcNow;
+                    await _productRepository.UpdateAsync(product);
+                    
+                    await _cartRepository.RemoveCartItemAsync(cart.Id, request.ProductId);
+                    _logger.LogInformation("??? Item removed from cart and stock released safely");
+                }
+                else
+                {
+                    // Actualizar producto en BD
+                    product.UpdatedAt = DateTime.UtcNow;
+                    await _productRepository.UpdateAsync(product);
+
+                    // Actualizar cantidad en carrito
+                    await _cartRepository.AddOrUpdateCartItemAsync(
+                        cart.Id,
+                        request.ProductId,
+                        request.Quantity,
+                        existingItem.UnitPriceSnapshot,
+                        existingItem.TitleSnapshot,
+                        existingItem.ImageUrlSnapshot,
+                        existingItem.CategoryNameSnapshot
+                    );
+                    _logger.LogInformation("?? Item quantity updated to {Quantity}", request.Quantity);
+                }
+
+                // 6. Recalcular y actualizar totales del carrito
+                var updatedCart = await _cartRepository.GetCartByIdAsync(cart.Id);
+                if (updatedCart != null)
+                {
+                    var totalBeforeDiscount = updatedCart.CartItems.Sum(ci => ci.UnitPriceSnapshot * ci.Quantity);
+                    var finalTotal = totalBeforeDiscount - updatedCart.DiscountAmount + updatedCart.ShippingCost;
+                    
+                    await _cartRepository.UpdateCartTotalsAsync(
+                        cart.Id,
+                        totalBeforeDiscount,
+                        updatedCart.DiscountAmount,
+                        updatedCart.ShippingCost,
+                        finalTotal
+                    );
+                }
+
+                // 7. Obtener carrito final actualizado
+                var finalCart = await _cartRepository.GetCartByIdAsync(cart.Id);
+                
+                _logger.LogInformation("? Item updated successfully in cart {CartId}", cart.Id);
+                
+                return finalCart!.ToCartDtoExtended();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "?? Error updating item in cart for user {UserId}", userId);
+                throw;
+            }
+        }
+
+        public async Task<CartDto> RemoveItemFromUserCartAsync(Guid userId, Guid productId)
+        {
+            try
+            {
+                _logger.LogInformation("??? User {UserId} removing item {ProductId}", userId, productId);
+
+                // 1. Obtener carrito activo del usuario
+                var cart = await _cartRepository.GetActiveCartByUserIdAsync(userId);
+                if (cart == null)
+                {
+                    throw new InvalidOperationException("User has no active cart");
+                }
+
+                // 2. Verificar que el item existe en el carrito
+                var existingItem = cart.CartItems.FirstOrDefault(ci => ci.ProductId == productId);
+                if (existingItem == null)
+                {
+                    throw new InvalidOperationException("Product not found in cart");
+                }
+
+                // 3. Liberar stock reservado de vuelta a disponible CON VALIDACIÓN
+                var product = await _productRepository.GetByIdAsync(productId);
+                if (product != null)
+                {
+                    var stockToRelease = existingItem.Quantity;
+                    var actualStockReleased = await ReleaseStockSafelyAsync(product, stockToRelease);
+
+                    // Actualizar producto en BD (solo si hubo cambio)
+                    if (actualStockReleased > 0)
+                    {
+                        product.UpdatedAt = DateTime.UtcNow;
+                        await _productRepository.UpdateAsync(product);
+                    }
+                }
+
+                // 4. Eliminar item del carrito
+                await _cartRepository.RemoveCartItemAsync(cart.Id, productId);
+                _logger.LogInformation("??? Item removed successfully from cart");
+
+                // 5. Recalcular y actualizar totales del carrito
+                var updatedCart = await _cartRepository.GetCartByIdAsync(cart.Id);
+                if (updatedCart != null)
+                {
+                    var totalBeforeDiscount = updatedCart.CartItems.Sum(ci => ci.UnitPriceSnapshot * ci.Quantity);
+                    var finalTotal = totalBeforeDiscount - updatedCart.DiscountAmount + updatedCart.ShippingCost;
+                    
+                    await _cartRepository.UpdateCartTotalsAsync(
+                        cart.Id,
+                        totalBeforeDiscount,
+                        updatedCart.DiscountAmount,
+                        updatedCart.ShippingCost,
+                        finalTotal
+                    );
+                }
+
+                // 6. Obtener carrito final actualizado
+                var finalCart = await _cartRepository.GetCartByIdAsync(cart.Id);
+                
+                _logger.LogInformation("? Item removed successfully from cart {CartId} and stock released safely", cart.Id);
+                
+                return finalCart!.ToCartDtoExtended();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "?? Error removing item from cart for user {UserId}", userId);
+                throw;
+            }
+        }
+
+        public async Task<CartDto> ClearUserCartAsync(Guid userId)
+        {
+            try
+            {
+                var cart = await _cartRepository.GetActiveCartByUserIdAsync(userId);
+                if (cart == null)
+                {
+                    throw new InvalidOperationException("User has no active cart");
+                }
+
+                cart.CartItems.Clear();
+                RecalculateCartTotals(cart);
+
+                var updatedCart = await _cartRepository.UpdateCartAsync(cart);
+                return updatedCart.ToCartDtoExtended();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error clearing cart for user {UserId}", userId);
+                throw;
+            }
+        }
+
+        public async Task<CartDto> CheckoutUserCartAsync(Guid userId)
+        {
+            try
+            {
+                var cart = await _cartRepository.GetActiveCartByUserIdAsync(userId);
+                if (cart == null)
+                {
+                    throw new InvalidOperationException("User has no active cart");
+                }
+
+                if (!cart.CartItems.Any())
+                {
+                    throw new InvalidOperationException("Cannot checkout empty cart");
+                }
+
+                _logger.LogInformation("?? Processing checkout for user {UserId}, cart {CartId} with {ItemCount} items", 
+                    userId, cart.Id, cart.CartItems.Count);
+
+                // === VALIDAR INVENTARIO EN CHECKOUT (Stock ya reservado) ===
+                var validationErrors = new List<string>();
+
+                // ? USAR TOLIST() PARA EVITAR "COLLECTION MODIFIED" ERROR
+                var cartItemsList = cart.CartItems.ToList(); // ? FIX AQUÍ
+
+                foreach (var cartItem in cartItemsList)
+                {
+                    var product = await _productRepository.GetByIdAsync(cartItem.ProductId);
+                    if (product == null)
+                    {
+                        validationErrors.Add($"Product '{cartItem.TitleSnapshot}' no longer exists");
+                        continue;
+                    }
+
+                    // ? VALIDAR CONTRA TOTAL STOCK (no Available, porque ya está reservado)
+                    if (product.InventoryTotal < cartItem.Quantity)
+                    {
+                        validationErrors.Add(
+                            $"Not enough total inventory for product '{product.Title}'. " +
+                            $"Total Stock: {product.InventoryTotal}, " +
+                            $"Requested: {cartItem.Quantity}");
+                        continue;
+                    }
+
+                    _logger.LogInformation("? Checkout validation passed for {ProductTitle}: " +
+                        "Total Stock {TotalStock} >= Requested {Requested} (Available: {Available}, Reserved: {Reserved})", 
+                        product.Title, product.InventoryTotal, cartItem.Quantity, 
+                        product.InventoryAvailable, product.InventoryTotal - product.InventoryAvailable);
+                }
+
+                // Si hay errores de validación, no procesar el checkout
+                if (validationErrors.Any())
+                {
+                    var errorMessage = "Checkout failed due to inventory issues:\n" + string.Join("\n", validationErrors);
+                    _logger.LogWarning("? Checkout validation failed: {Errors}", string.Join(", ", validationErrors));
+                    throw new InvalidOperationException(errorMessage);
+                }
+
+                // === PROCESAR CHECKOUT: CONFIRMAR VENTA ===
+                // ? USAR TOLIST() PARA EVITAR "COLLECTION MODIFIED" ERROR
+                foreach (var cartItem in cartItemsList) // ? YA TENEMOS LA LISTA
+                {
+                    var product = await _productRepository.GetByIdAsync(cartItem.ProductId);
+                    if (product != null)
+                    {
+                        // El stock ya fue reservado al agregar al carrito
+                        // Ahora solo reducimos el total para confirmar la venta
+                        var previousTotal = product.InventoryTotal;
+                        product.InventoryTotal -= cartItem.Quantity;
+                        
+                        // Asegurar que no quede negativo
+                        if (product.InventoryTotal < 0)
+                        {
+                            product.InventoryTotal = 0;
+                        }
+                        
+                        product.UpdatedAt = DateTime.UtcNow;
+                        
+                        _logger.LogInformation("?? Sale confirmed for product {ProductTitle}: " +
+                            "Total Stock {PreviousTotal} ? {NewTotal} (-{Quantity}). " +
+                            "Available remains: {Available}", 
+                            product.Title, previousTotal, product.InventoryTotal, cartItem.Quantity,
+                            product.InventoryAvailable);
+                        
+                        await _productRepository.UpdateAsync(product);
+                    }
+                }
+
+                // === MARCAR CARRITO COMO COMPRADO ===
+                cart.Status = CartStatus.CheckedOut;
+                cart.UpdatedAt = DateTime.UtcNow;
+
+                var updatedCart = await _cartRepository.UpdateCartAsync(cart);
+                
+                _logger.LogInformation("? Checkout completed successfully for user {UserId}. Cart {CartId} checked out with {ItemCount} items", 
+                    userId, cart.Id, cart.CartItems.Count);
+
+                return updatedCart.ToCartDtoExtended();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "?? Error during checkout for user {UserId}", userId);
+                throw;
+            }
+        }
+
+        // === MÉTODOS HELPER ===
+
+        private async Task<Cart> CreateEmptyCartForUser(Guid userId)
+        {
+            var cart = new Cart
+            {
+                UserId = userId,
+                Status = CartStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                TotalBeforeDiscount = 0,
+                DiscountAmount = 0,
+                ShippingCost = 0,
+                FinalTotal = 0
+            };
+
+            return await _cartRepository.CreateCartAsync(cart);
+        }
+
+        private void RecalculateCartTotals(Cart cart)
+        {
+            cart.TotalBeforeDiscount = cart.CartItems.Sum(ci => ci.UnitPriceSnapshot * ci.Quantity);
+            cart.FinalTotal = cart.TotalBeforeDiscount - cart.DiscountAmount + cart.ShippingCost;
+            cart.UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Verifica si hay suficiente inventario para un producto
+        /// </summary>
+        private async Task ValidateInventoryAsync(Guid productId, int requestedQuantity, int currentCartQuantity = 0)
+        {
+            var product = await _productRepository.GetByIdAsync(productId);
+            if (product == null)
+            {
+                throw new InvalidOperationException($"Product {productId} not found");
+            }
+
+            var totalRequested = requestedQuantity + currentCartQuantity;
+            if (product.InventoryAvailable < totalRequested)
+            {
+                throw new InvalidOperationException(
+                    $"Not enough inventory for product '{product.Title}'. " +
+                    $"Available: {product.InventoryAvailable}, Requested: {totalRequested}");
+            }
+        }
+
+        /// <summary>
+        /// Restaura inventario cuando se cancela o abandona un carrito
+        /// </summary>
+        public async Task RestoreInventoryAsync(Guid cartId)
+        {
+            try
+            {
+                var cart = await _cartRepository.GetCartByIdAsync(cartId);
+                if (cart == null || cart.Status != CartStatus.CheckedOut)
+                {
+                    return; // Solo restaurar si el carrito fue comprado
+                }
+
+                _logger.LogInformation("?? Restoring inventory for cancelled cart {CartId}", cartId);
+
+                foreach (var cartItem in cart.CartItems)
+                {
+                    var product = await _productRepository.GetByIdAsync(cartItem.ProductId);
+                    if (product != null)
+                    {
+                        product.InventoryAvailable += cartItem.Quantity;
+                        product.UpdatedAt = DateTime.UtcNow;
+                        await _productRepository.UpdateAsync(product);
+                        
+                        _logger.LogInformation("?? Restored {Quantity} units for product {ProductTitle}", 
+                            cartItem.Quantity, product.Title);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error restoring inventory for cart {CartId}", cartId);
+                throw;
+            }
+        }
+
         // === MÉTODOS PARA INFORMACIÓN COMPLETA DE LA BD ===
 
         public async Task<CartFullDetailsDto?> GetCartFullDetailsByIdAsync(Guid cartId)
@@ -617,6 +1195,87 @@ namespace Logica.Services
             var idBytes = BitConverter.GetBytes(id);
             Array.Copy(idBytes, 0, bytes, 0, 4);
             return new Guid(bytes);
+        }
+
+        /// <summary>
+        /// Obtiene warnings de inventario para mostrar en frontend sin bloquear operaciones
+        /// </summary>
+        public async Task<IEnumerable<string>> GetInventoryWarningsAsync(Guid userId)
+        {
+            try
+            {
+                var cart = await _cartRepository.GetActiveCartByUserIdAsync(userId);
+                if (cart == null || !cart.CartItems.Any())
+                {
+                    return new List<string>();
+                }
+
+                var warnings = new List<string>();
+
+                foreach (var cartItem in cart.CartItems)
+                {
+                    var product = await _productRepository.GetByIdAsync(cartItem.ProductId);
+                    if (product == null)
+                    {
+                        warnings.Add($"?? Product '{cartItem.TitleSnapshot}' is no longer available");
+                        continue;
+                    }
+
+                    if (product.InventoryAvailable < cartItem.Quantity)
+                    {
+                        warnings.Add(
+                            $"?? Limited stock for '{product.Title}': " +
+                            $"Only {product.InventoryAvailable} available (you have {cartItem.Quantity} in cart)");
+                    }
+                    else if (product.InventoryAvailable < cartItem.Quantity * 2)
+                    {
+                        warnings.Add($"?? Low stock for '{product.Title}': Only {product.InventoryAvailable} remaining");
+                    }
+                }
+
+                return warnings;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting inventory warnings for user {UserId}", userId);
+                return new List<string> { "?? Unable to check inventory status" };
+            }
+        }
+
+        /// <summary>
+        /// Libera stock de forma segura respetando los constraints de BD
+        /// </summary>
+        private async Task<int> ReleaseStockSafelyAsync(Product product, int quantityToRelease)
+        {
+            var newAvailableStock = product.InventoryAvailable + quantityToRelease;
+            
+            // Validar constraint: Available no puede superar Total
+            if (newAvailableStock > product.InventoryTotal)
+            {
+                var maxAvailableStock = product.InventoryTotal;
+                var actualStockReleased = Math.Max(0, maxAvailableStock - product.InventoryAvailable);
+                
+                product.InventoryAvailable = maxAvailableStock;
+                
+                _logger.LogWarning("?? Stock release limited for product {ProductTitle}. " +
+                    "Requested: {RequestedRelease}, Actual: {ActualRelease}, " +
+                    "Available: {Available}, Total: {Total}", 
+                    product.Title, quantityToRelease, actualStockReleased,
+                    product.InventoryAvailable, product.InventoryTotal);
+                
+                return actualStockReleased;
+            }
+            else
+            {
+                product.InventoryAvailable = newAvailableStock;
+                
+                _logger.LogInformation("?? Released {Quantity} units for product {ProductTitle}. " +
+                    "Available: {Available}, Total: {Total}", 
+                    quantityToRelease, product.Title,
+                    product.InventoryAvailable, product.InventoryTotal);
+                
+                return quantityToRelease;
+            }
         }
     }
 }

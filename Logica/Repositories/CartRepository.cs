@@ -60,37 +60,49 @@ namespace Logica.Repositories
 
         public async Task<Cart> UpdateCartAsync(Cart cart)
         {
-            cart.UpdatedAt = DateTime.UtcNow;
-            
-            // Si el carrito tiene items, necesitamos manejar los CartItems separadamente
-            // porque EF Core puede tener problemas con las relaciones
-            if (cart.CartItems?.Any() == true)
+            try
             {
-                // Obtener el carrito existente con sus items
-                var existingCart = await _context.Carts
+                _logger.LogInformation("?? Updating cart {CartId}", cart.Id);
+                
+                cart.UpdatedAt = DateTime.UtcNow;
+                
+                // Re-obtener el carrito actual desde la BD SIN transacciones manuales
+                var currentCart = await _context.Carts
                     .Include(c => c.CartItems)
                     .FirstOrDefaultAsync(c => c.Id == cart.Id);
 
-                if (existingCart != null)
+                if (currentCart == null)
                 {
-                    // Eliminar items existentes
-                    _context.CartItems.RemoveRange(existingCart.CartItems);
-                    
-                    // Actualizar propiedades del carrito
-                    existingCart.Status = cart.Status;
-                    existingCart.AppliedCouponId = cart.AppliedCouponId;
-                    existingCart.TotalBeforeDiscount = cart.TotalBeforeDiscount;
-                    existingCart.DiscountAmount = cart.DiscountAmount;
-                    existingCart.ShippingCost = cart.ShippingCost;
-                    existingCart.FinalTotal = cart.FinalTotal;
-                    existingCart.UpdatedAt = cart.UpdatedAt;
-                    
-                    // Agregar nuevos items
-                    foreach (var newItem in cart.CartItems)
+                    throw new InvalidOperationException($"Cart {cart.Id} not found");
+                }
+
+                // Actualizar propiedades del carrito sin tocar los items aún
+                currentCart.Status = cart.Status;
+                currentCart.AppliedCouponId = cart.AppliedCouponId;
+                currentCart.TotalBeforeDiscount = cart.TotalBeforeDiscount;
+                currentCart.DiscountAmount = cart.DiscountAmount;
+                currentCart.ShippingCost = cart.ShippingCost;
+                currentCart.FinalTotal = cart.FinalTotal;
+                currentCart.UpdatedAt = cart.UpdatedAt;
+
+                // Si hay items nuevos que agregar/actualizar
+                if (cart.CartItems?.Any() == true)
+                {
+                    // ? USAR TOLIST() PARA EVITAR "COLLECTION MODIFIED" ERROR
+                    // Eliminar todos los items existentes
+                    if (currentCart.CartItems?.Any() == true)
                     {
-                        _context.CartItems.Add(new CartItem
+                        var itemsToRemove = currentCart.CartItems.ToList(); // ? FIX AQUÍ
+                        _context.CartItems.RemoveRange(itemsToRemove);
+                    }
+
+                    // Agregar los nuevos items
+                    var itemsToAdd = cart.CartItems.ToList(); // ? FIX AQUÍ
+                    foreach (var newItem in itemsToAdd)
+                    {
+                        var cartItem = new CartItem
                         {
-                            CartId = existingCart.Id,
+                            CartId = currentCart.Id,
                             ProductId = newItem.ProductId,
                             Quantity = newItem.Quantity,
                             UnitPriceSnapshot = newItem.UnitPriceSnapshot,
@@ -99,22 +111,28 @@ namespace Logica.Repositories
                             CategoryNameSnapshot = newItem.CategoryNameSnapshot,
                             CreatedAt = newItem.CreatedAt,
                             UpdatedAt = newItem.UpdatedAt
-                        });
+                        };
+                        _context.CartItems.Add(cartItem);
                     }
                 }
+
+                // Guardar todos los cambios SIN transacciones manuales
+                await _context.SaveChangesAsync();
+                
+                _logger.LogInformation("? Cart {CartId} updated successfully", cart.Id);
+                
+                // Retornar el carrito actualizado
+                return await GetCartByIdAsync(cart.Id) ?? currentCart;
             }
-            else
+            catch (Exception ex)
             {
-                _context.Carts.Update(cart);
+                _logger.LogError(ex, "?? Error updating cart {CartId}", cart.Id);
+                throw;
             }
-            
-            await _context.SaveChangesAsync();
-            return await GetCartByIdAsync(cart.Id) ?? cart;
         }
 
         public async Task<bool> DeleteCartAsync(Guid cartId)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
                 _logger.LogInformation("=== DELETING CART {CartId} ===", cartId);
@@ -132,24 +150,23 @@ namespace Logica.Repositories
 
                 _logger.LogInformation("Found cart with {ItemCount} items", cart.CartItems?.Count ?? 0);
 
-                // 2. Eliminar primero los CartItems manualmente
+                // 2. Con cascade delete configurado, solo necesitamos eliminar el cart
+                // Pero por seguridad, eliminamos items primero usando RemoveRange
                 if (cart.CartItems?.Any() == true)
                 {
-                    _logger.LogInformation("Deleting {ItemCount} cart items", cart.CartItems.Count);
-                    foreach (var item in cart.CartItems.ToList())
-                    {
-                        _context.CartItems.Remove(item);
-                    }
-                    await _context.SaveChangesAsync();
-                    _logger.LogInformation("Cart items deleted successfully");
+                    // ? USAR TOLIST() PARA EVITAR "COLLECTION MODIFIED" ERROR
+                    var itemsToRemove = cart.CartItems.ToList(); // ? FIX AQUÍ
+                    _logger.LogInformation("Removing {ItemCount} cart items using RemoveRange", itemsToRemove.Count);
+                    _context.CartItems.RemoveRange(itemsToRemove);
                 }
 
-                // 3. Ahora eliminar el carrito
-                _logger.LogInformation("Deleting cart entity");
+                // 3. Eliminar el carrito
+                _logger.LogInformation("Removing cart entity");
                 _context.Carts.Remove(cart);
+                
+                // 4. Guardar todos los cambios de una vez
                 await _context.SaveChangesAsync();
                 
-                await transaction.CommitAsync();
                 _logger.LogInformation("=== CART {CartId} DELETED SUCCESSFULLY ===", cartId);
                 
                 return true;
@@ -157,7 +174,6 @@ namespace Logica.Repositories
             catch (Exception ex)
             {
                 _logger.LogError(ex, "=== ERROR DELETING CART {CartId} ===", cartId);
-                await transaction.RollbackAsync();
                 throw;
             }
         }
@@ -211,6 +227,113 @@ namespace Logica.Repositories
             _context.ExternalMappings.Add(mapping);
             await _context.SaveChangesAsync();
             return mapping;
+        }
+
+        public async Task<Cart?> GetActiveCartByUserIdAsync(Guid userId)
+        {
+            return await _context.Carts
+                .Include(c => c.CartItems)
+                    .ThenInclude(ci => ci.Product)
+                        .ThenInclude(p => p.Category)
+                .Include(c => c.AppliedCoupon)
+                .Where(c => c.UserId == userId && c.Status == CartStatus.Active)
+                .OrderByDescending(c => c.UpdatedAt)
+                .FirstOrDefaultAsync();
+        }
+
+        // Direct cart item operations to avoid concurrency issues
+        public async Task<CartItem> AddOrUpdateCartItemAsync(Guid cartId, Guid productId, int quantity, decimal unitPrice, string? title = null, string? imageUrl = null, string? categoryName = null)
+        {
+            try
+            {
+                _logger.LogInformation("?? Adding/updating cart item: Cart={CartId}, Product={ProductId}, Quantity={Quantity}", 
+                    cartId, productId, quantity);
+
+                // Buscar item existente
+                var existingItem = await _context.CartItems
+                    .FirstOrDefaultAsync(ci => ci.CartId == cartId && ci.ProductId == productId);
+
+                if (existingItem != null)
+                {
+                    // Actualizar item existente
+                    existingItem.Quantity = quantity;
+                    existingItem.UpdatedAt = DateTime.UtcNow;
+                    _logger.LogInformation("?? Updated existing cart item quantity to {Quantity}", quantity);
+                }
+                else
+                {
+                    // Crear nuevo item
+                    existingItem = new CartItem
+                    {
+                        CartId = cartId,
+                        ProductId = productId,
+                        Quantity = quantity,
+                        UnitPriceSnapshot = unitPrice,
+                        TitleSnapshot = title,
+                        ImageUrlSnapshot = imageUrl,
+                        CategoryNameSnapshot = categoryName,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    _context.CartItems.Add(existingItem);
+                    _logger.LogInformation("? Created new cart item");
+                }
+
+                await _context.SaveChangesAsync();
+                return existingItem;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "?? Error adding/updating cart item");
+                throw;
+            }
+        }
+
+        public async Task<bool> RemoveCartItemAsync(Guid cartId, Guid productId)
+        {
+            try
+            {
+                var item = await _context.CartItems
+                    .FirstOrDefaultAsync(ci => ci.CartId == cartId && ci.ProductId == productId);
+
+                if (item == null)
+                    return false;
+
+                _context.CartItems.Remove(item);
+                await _context.SaveChangesAsync();
+                
+                _logger.LogInformation("??? Removed cart item: Cart={CartId}, Product={ProductId}", cartId, productId);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "?? Error removing cart item");
+                throw;
+            }
+        }
+
+        public async Task UpdateCartTotalsAsync(Guid cartId, decimal totalBeforeDiscount, decimal discountAmount, decimal shippingCost, decimal finalTotal)
+        {
+            try
+            {
+                var cart = await _context.Carts.FindAsync(cartId);
+                if (cart == null)
+                    throw new InvalidOperationException($"Cart {cartId} not found");
+
+                cart.TotalBeforeDiscount = totalBeforeDiscount;
+                cart.DiscountAmount = discountAmount;
+                cart.ShippingCost = shippingCost;
+                cart.FinalTotal = finalTotal;
+                cart.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+                
+                _logger.LogInformation("?? Updated cart totals: Cart={CartId}, Total={FinalTotal}", cartId, finalTotal);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "?? Error updating cart totals");
+                throw;
+            }
         }
     }
 }

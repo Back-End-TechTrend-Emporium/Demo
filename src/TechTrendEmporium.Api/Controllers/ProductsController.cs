@@ -274,8 +274,6 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-
-
         // Sync Operations
 
 
@@ -408,6 +406,142 @@ namespace TechTrendEmporium.Api.Controllers
             return BitConverter.ToInt32(bytes, 0);
         }
 
+        // === SIMPLE INVENTORY OPERATIONS ===
 
+        [HttpGet("{id:guid}/stock")]
+        public async Task<ActionResult<object>> GetProductStock(Guid id)
+        {
+            try
+            {
+                var product = await _productService.GetProductByIdAsync(id);
+                if (product == null)
+                {
+                    return NotFound($"Product with ID {id} not found");
+                }
+
+                var stockInfo = new
+                {
+                    productId = product.Id,
+                    productTitle = product.Title,
+                    productImage = product.Image,
+                    totalStock = product.InventoryTotal,
+                    availableStock = product.InventoryAvailable,
+                    reservedStock = Math.Max(0, product.InventoryTotal - product.InventoryAvailable), // Calculado
+                    isInStock = product.IsInStock,
+                    isLowStock = product.IsLowStock,
+                    isOutOfStock = product.IsOutOfStock
+                };
+
+                return Ok(stockInfo);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting stock for product {ProductId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        [HttpGet("stock/summary")]
+        public async Task<ActionResult<object>> GetStockSummary()
+        {
+            try
+            {
+                var products = await _productService.GetAllProductsAsync();
+                var productsList = products.ToList();
+
+                var summary = new
+                {
+                    totalProducts = productsList.Count,
+                    inStockProducts = productsList.Count(p => p.IsInStock),
+                    outOfStockProducts = productsList.Count(p => p.IsOutOfStock),
+                    lowStockProducts = productsList.Count(p => p.IsLowStock),
+                    totalInventoryValue = (int)productsList.Sum(p => p.Price * p.InventoryAvailable)
+                };
+
+                return Ok(summary);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting stock summary");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        [HttpGet("stock/low")]
+        public async Task<ActionResult<IEnumerable<object>>> GetLowStockProducts()
+        {
+            try
+            {
+                var products = await _productService.GetAllProductsAsync();
+                var lowStockProducts = products
+                    .Where(p => p.IsLowStock)
+                    .Select(p => new
+                    {
+                        productId = p.Id,
+                        title = p.Title,
+                        image = p.Image,
+                        availableStock = p.InventoryAvailable,
+                        totalStock = p.InventoryTotal,
+                        isOutOfStock = p.IsOutOfStock
+                    })
+                    .ToList();
+
+                return Ok(lowStockProducts);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting low stock products");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        [HttpGet("stock/out")]
+        public async Task<ActionResult<IEnumerable<object>>> GetOutOfStockProducts()
+        {
+            try
+            {
+                var products = await _productService.GetAllProductsAsync();
+                var outOfStockProducts = products
+                    .Where(p => p.IsOutOfStock)
+                    .Select(p => new
+                    {
+                        productId = p.Id,
+                        title = p.Title,
+                        image = p.Image,
+                        availableStock = p.InventoryAvailable,
+                        totalStock = p.InventoryTotal
+                    })
+                    .ToList();
+
+                return Ok(outOfStockProducts);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting out of stock products");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        [HttpPut("{id:guid}/stock")]
+        public async Task<ActionResult> UpdateProductStock(Guid id, [FromBody] object stockUpdate)
+        {
+            try
+            {
+                // TODO: Implementar actualización de stock cuando sea necesario
+                _logger.LogInformation("📦 Stock update requested for product {ProductId}: {Update}", 
+                    id, stockUpdate);
+
+                return Ok(new { 
+                    message = "Stock update request logged",
+                    productId = id,
+                    updateData = stockUpdate
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating stock for product {ProductId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
     }
 }
