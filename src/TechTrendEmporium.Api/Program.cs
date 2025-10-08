@@ -24,14 +24,13 @@ string? connectionString;
 
 if (builder.Environment.IsDevelopment())
 {
-    // En desarrollo, usar la conexión local del appsettings.Development.json
     connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     Console.WriteLine($"[DEVELOPMENT] Using local database: {connectionString}");
 }
 else
 {
     // En producción, usar la conexión de Azure desde múltiples fuentes
-    connectionString = 
+    connectionString =
         builder.Configuration["ConnectionStrings:ProductionConnection"] // User Secrets (local testing)
         ?? builder.Configuration.GetConnectionString("ProductionConnection") // User Secrets (local testing)
         ?? builder.Configuration.GetConnectionString("DefaultConnection") // Azure App Service Connection String
@@ -40,7 +39,7 @@ else
         ?? Environment.GetEnvironmentVariable("SQLCONNSTR_ProductionConnection")
         ?? Environment.GetEnvironmentVariable("SQLCONNSTR_DefaultConnection")
         ?? Environment.GetEnvironmentVariable("CUSTOMCONNSTR_DefaultConnection");
-    
+
     Console.WriteLine($"[PRODUCTION] Using Azure database");
     Console.WriteLine($"[DEBUG] Connection string found: {!string.IsNullOrEmpty(connectionString)}");
     
@@ -83,10 +82,7 @@ builder.Services.AddHttpClient<IFakeStoreApiService, FakeStoreApiService>(client
 {
     var fakeStoreConfig = builder.Configuration.GetSection("FakeStoreApi");
     var baseUrl = fakeStoreConfig["BaseUrl"] ?? "https://fakestoreapi.com";
-    var timeoutSeconds = fakeStoreConfig.GetValue<int>("TimeoutSeconds", 30);
-    
     client.BaseAddress = new Uri(baseUrl);
-    client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 });
 
 // === Dependency Injection ===
@@ -209,6 +205,7 @@ if (builder.Configuration.GetValue<bool>("EF:ApplyMigrationsOnStartup"))
             await context.Database.MigrateAsync();
             logger.LogInformation("Database migrations applied successfully");
         }
+        await DbSeeder.SeedUsersAsync(context, logger);
     }
     catch (Exception ex)
     {
@@ -278,17 +275,12 @@ if (swaggerEnabled)
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "TechTrendEmporium.Api v1");
-        if (builder.Configuration.GetValue<bool>("Swagger:ServeAtRoot", false))
-            c.RoutePrefix = string.Empty; // sirve Swagger en "/"
     });
 }
 
 app.UseHttpsRedirection();
-
-// === ¡MUY IMPORTANTE EL ORDEN! ===
-app.UseAuthentication(); // 1. Identifica quién es el usuario (lee el token).
-app.UseAuthorization();  // 2. Verifica si ese usuario tiene permisos.
-
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 app.MapGet("/health", () => "Healthy");
 

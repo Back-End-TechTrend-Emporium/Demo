@@ -81,9 +81,13 @@ namespace Logica.Repositories
             // Check if category has products
             var hasProducts = await _context.Products.AnyAsync(p => p.CategoryId == id);
             if (hasProducts)
-                throw new InvalidOperationException("No se puede eliminar una categoría que tiene productos asociados");
+                throw new InvalidOperationException("Can't delete a category that has asociated products.");
+            if (category.State == ApprovalState.Deleted)
+                throw new InvalidOperationException("Category is already deleted.");
 
-            _context.Categories.Remove(category);
+            category.State = ApprovalState.Deleted;
+            category.UpdatedAt = DateTime.UtcNow;
+            _context.Categories.Update(category);
             await _context.SaveChangesAsync();
             return true;
         }
