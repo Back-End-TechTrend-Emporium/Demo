@@ -5,9 +5,7 @@ using Logica.Models.Products;
 
 namespace Logica.Mappers
 {
-    /// <summary>
-    /// Mapper to convert between domain entities and domain DTOs
-    /// </summary>
+  
     public static class ProductMapper
     {
         public static ProductDto ToProductDto(this Product product)

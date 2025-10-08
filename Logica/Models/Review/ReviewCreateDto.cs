@@ -4,7 +4,7 @@ namespace Logica.Models.Reviews
 {
     public class ReviewCreateDto
     {
-        // La historia pide "user": "username"
+        
         [Required, MaxLength(100)]
         public string User { get; set; } = default!;
 

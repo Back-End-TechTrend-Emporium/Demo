@@ -11,10 +11,10 @@ namespace Logica.Models.Category
     {
         public Guid ProductId { get; set; }
         
-        [Range(1, int.MaxValue, ErrorMessage = "La cantidad debe ser mayor a 0")]
+        [Range(1, int.MaxValue, ErrorMessage = "Quantity must be greater than 0")]
         public int Quantity { get; set; }
         
-        // Propiedades adicionales útiles para el frontend
+        // Additional properties useful for frontend
         public string? ProductTitle { get; set; }
         public decimal? UnitPrice { get; set; }
         public string? ProductImage { get; set; }

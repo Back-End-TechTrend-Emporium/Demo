@@ -32,8 +32,8 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener usuarios");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting users");
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -46,7 +46,7 @@ namespace TechTrendEmporium.Api.Controllers
 
                 if (user == null)
                 {
-                    return NotFound($"Usuario con ID {id} no encontrado");
+                    return NotFound($"User with ID {id} not found");
                 }
 
                 var response = new GetUserResponse
@@ -60,8 +60,8 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener usuario {UserId}", id);
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting user {UserId}", id);
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -91,8 +91,8 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al crear usuario");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error creating user");
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -108,8 +108,8 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener usuarios de FakeStore");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting users from FakeStore");
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -122,15 +122,15 @@ namespace TechTrendEmporium.Api.Controllers
 
                 if (user == null)
                 {
-                    return NotFound($"Usuario con ID {id} no encontrado en FakeStore");
+                    return NotFound($"User with ID {id} not found in FakeStore");
                 }
 
                 return Ok(user);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener usuario {UserId} de FakeStore", id);
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting user {UserId} from FakeStore", id);
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -145,15 +145,15 @@ namespace TechTrendEmporium.Api.Controllers
 
                 return Ok(new
                 {
-                    Message = "Sincronización de usuarios completada exitosamente",
+                    Message = "User synchronization completed successfully",
                     ImportedCount = importedCount,
                     Timestamp = DateTime.UtcNow
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error en sincronización de usuarios desde FakeStore");
-                return StatusCode(500, "Error durante la sincronización");
+                _logger.LogError(ex, "Error syncing users from FakeStore");
+                return StatusCode(500, "Error during synchronization");
             }
         }
 
@@ -166,7 +166,7 @@ namespace TechTrendEmporium.Api.Controllers
 
                 if (user == null)
                 {
-                    return NotFound($"Usuario con ID {fakeStoreId} no encontrado en FakeStore");
+                    return NotFound($"User with ID {fakeStoreId} not found in FakeStore");
                 }
 
                 return Ok(user);
@@ -177,8 +177,8 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error importando usuario {UserId} desde FakeStore", fakeStoreId);
-                return StatusCode(500, "Error durante la importación");
+                _logger.LogError(ex, "Error importing user {UserId} from FakeStore", fakeStoreId);
+                return StatusCode(500, "Error during import");
             }
         }
 
