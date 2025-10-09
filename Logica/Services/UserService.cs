@@ -24,16 +24,18 @@ namespace Logica.Services
             _externalMappingRepository = externalMappingRepository;
         }
 
-<<<<<<< HEAD
-        public async Task<IEnumerable<UserResponse>> GetAllUsersAsync(CancellationToken cancellationToken = default)
-=======
         // Local user operations
         public async Task<IEnumerable<GetUserResponse>> GetAllUsersAsync(CancellationToken cancellationToken = default)
->>>>>>> upstream/main
         {
             var users = await _userRepository.GetAllAsync(cancellationToken);
-            // Mapeamos a UserResponse para no exponer datos sensibles como el PasswordHash
-            return users.Select(u => new UserResponse(u.Id, u.Name, u.Email, u.Username, u.Role.ToString()));
+
+            var model = users.Select(u => new GetUserResponse
+            {
+                Id = u.Id,
+                Email = u.Email,
+                Username = u.Username,
+            }).ToList();
+            return model;
         }
 
         public async Task<UserResponse?> GetUserByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -43,7 +45,7 @@ namespace Logica.Services
             {
                 return null;
             }
-            // Mapeamos a UserResponse
+            // Map to UserResponse
             return new UserResponse(user.Id, user.Name, user.Email, user.Username, user.Role.ToString());
         }
 
@@ -51,12 +53,12 @@ namespace Logica.Services
         {
             if (await _userRepository.EmailExistsAsync(request.Email, cancellationToken) || await _userRepository.UsernameExistsAsync(request.Username, cancellationToken))
             {
-                return (null, "El email o nombre de usuario ya existe.");
+                return (null, "This email or user already exist.");
             }
 
             if (!Enum.IsDefined(typeof(Role), request.Role))
             {
-                return (null, "El rol especificado no es válido.");
+                return (null, "The specified role is not valid.");
             }
 
             var user = new User
@@ -65,7 +67,8 @@ namespace Logica.Services
                 Username = request.Username,
                 Email = request.Email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-                Role = request.Role
+                Role = request.Role,
+                IsActive = true
             };
 
             var addedUser = await _userRepository.AddAsync(user, cancellationToken);
@@ -81,7 +84,7 @@ namespace Logica.Services
                 return (null, "Usuario no encontrado.");
             }
 
-            // Actualizamos solo los campos que vienen en la petición
+            // Actualizamos solo los campos que vienen en la peticiÃ³n
             if (!string.IsNullOrEmpty(request.Name)) user.Name = request.Name;
             if (!string.IsNullOrEmpty(request.Email)) user.Email = request.Email;
             if (!string.IsNullOrEmpty(request.Password)) user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
@@ -120,7 +123,7 @@ namespace Logica.Services
             return fakeStoreUser != null ? FakeStoreUserMapper.ToUserDto(fakeStoreUser) : null;
         }
 
-        // Sync operations
+       
         public async Task<int> SyncAllUsersFromFakeStoreAsync()
         {
             var fakeStoreUsers = await _fakeStoreApiService.GetUsersAsync();
@@ -130,14 +133,14 @@ namespace Logica.Services
             {
                 try
                 {
-                    // Check if this user is already imported
+                    
                     var existingMapping = await _externalMappingRepository.GetByExternalIdAsync(
                         ExternalSource.FakeStore, 
                         "USER", 
                         fakeStoreUser.Id.ToString());
 
                     if (existingMapping != null)
-                        continue; // Skip already imported users
+                        continue; 
 
                     // Check if email or username already exists
                     if (await _userRepository.EmailExistsAsync(fakeStoreUser.Email))
@@ -146,7 +149,7 @@ namespace Logica.Services
                     if (await _userRepository.UsernameExistsAsync(fakeStoreUser.Username))
                         continue;
 
-                    // Create the user
+                    
                     var user = FakeStoreUserMapper.ToUser(fakeStoreUser);
                     var createdUser = await _userRepository.AddAsync(user);
 
@@ -180,7 +183,7 @@ namespace Logica.Services
             if (fakeStoreUser == null)
                 return null;
 
-            // Check if already imported
+        
             var existingMapping = await _externalMappingRepository.GetByExternalIdAsync(
                 ExternalSource.FakeStore, 
                 "USER", 
@@ -194,16 +197,16 @@ namespace Logica.Services
 
             // Check if email or username already exists
             if (await _userRepository.EmailExistsAsync(fakeStoreUser.Email))
-                throw new InvalidOperationException($"El email {fakeStoreUser.Email} ya existe en el sistema");
+                throw new InvalidOperationException($"Email {fakeStoreUser.Email} already exists in the system");
 
             if (await _userRepository.UsernameExistsAsync(fakeStoreUser.Username))
-                throw new InvalidOperationException($"El username {fakeStoreUser.Username} ya existe en el sistema");
+                throw new InvalidOperationException($"Username {fakeStoreUser.Username} already exists in the system");
 
-            // Create the user
+           
             var user = FakeStoreUserMapper.ToUser(fakeStoreUser);
             var createdUser = await _userRepository.AddAsync(user);
 
-            // Create the external mapping
+          
             var mapping = new ExternalMapping
             {
                 Source = ExternalSource.FakeStore,

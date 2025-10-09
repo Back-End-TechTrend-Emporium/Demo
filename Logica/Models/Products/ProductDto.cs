@@ -22,5 +22,14 @@ namespace Logica.Models.Products
         public string Image { get; set; } = string.Empty;
         
         public RatingDto? Rating { get; set; }
+
+        // Inventory properties
+        public int InventoryTotal { get; set; } = 0;
+        public int InventoryAvailable { get; set; } = 0;
+
+        // Calculated inventory properties
+        public bool IsLowStock => InventoryAvailable <= 5;
+        public bool IsOutOfStock => InventoryAvailable <= 0;
+        public bool IsInStock => InventoryAvailable > 0;
     }
 }

@@ -1,26 +1,34 @@
 using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Logica.Models.Products
 {
     public class ProductCreateDto
     {
-        public required string Title { get; set; }
+        [Required(ErrorMessage = "Title is required")]
+        [StringLength(200, ErrorMessage = "Title cannot exceed 200 characters")]
+        public string Title { get; set; } = string.Empty;
 
+        [Required(ErrorMessage = "Price is required")]
+        [Range(0.01, double.MaxValue, ErrorMessage = "Price must be greater than 0")]
         public decimal Price { get; set; }
 
-        public required string Description { get; set; }
+        [StringLength(1000, ErrorMessage = "Description cannot exceed 1000 characters")]
+        public string? Description { get; set; }
 
-        public required string Category { get; set; }
+        [Required(ErrorMessage = "Category is required")]
+        [StringLength(100, ErrorMessage = "Category cannot exceed 100 characters")]
+        public string Category { get; set; } = string.Empty;
 
-        public required string Image { get; set; }
+        [Url(ErrorMessage = "Invalid URL format")]
+        [StringLength(500, ErrorMessage = "Image URL cannot exceed 500 characters")]
+        public string? ImageUrl { get; set; }
 
-        public RatingDto Rating { get; set; } = new RatingDto { Rate = 0, Count = 0 };
+        // ? NUEVOS CAMPOS DE INVENTARIO
+        [Range(0, int.MaxValue, ErrorMessage = "Total inventory must be 0 or greater")]
+        public int InventoryTotal { get; set; } = 0;
 
-        public InventoryDto Inventory { get; set; } = new InventoryDto { Total = 0, Available = 0 };
+        [Range(0, int.MaxValue, ErrorMessage = "Available inventory must be 0 or greater")]
+        public int InventoryAvailable { get; set; } = 0;
     }
 }

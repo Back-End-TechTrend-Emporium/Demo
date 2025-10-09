@@ -1,82 +1,16 @@
-<<<<<<< HEAD
-Ôªøusing Logica.Interfaces;
+Ôªøusing Data.Entities.Enums;
+using Logica.Interfaces;
 using Logica.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-
-namespace TechTrendEmporium.Api.Controllers;
-
-[ApiController]
-[Route("api/user")]
-// Protegemos todo el controlador para que solo Administradores y SuperAdmins puedan acceder a la lista.
-[Authorize(Roles = "Admin, SuperAdmin")]
-public class UsersController : ControllerBase
-{
-    private readonly IUserService _userService;
-
-    public UsersController(IUserService userService)
-    {
-        _userService = userService;
-    }
-
-    /// <summary>
-    /// Obtiene una lista de todos los usuarios.
-    /// </summary>
-    [HttpGet]
-    public async Task<IActionResult> GetAllUsers()
-    {
-        var users = await _userService.GetAllUsersAsync();
-        return Ok(users);
-    }
-
-    /// <summary>
-    /// Crea un nuevo usuario. Solo accesible para SuperAdmin.
-    /// </summary>
-    [HttpPost]
-    [Authorize(Roles = "SuperAdmin")] // Sobrescribe la autorizaci√≥n para ser m√°s restrictivo.
-    public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request)
-    {
-        var (user, error) = await _userService.CreateUserAsync(request);
-        if (error != null) return BadRequest(new { message = error });
-
-        // Devuelve el usuario creado y un link para acceder a √©l.
-        return CreatedAtAction(nameof(GetAllUsers), new { id = user!.Id }, user);
-    }
-
-    /// <summary>
-    /// Actualiza un usuario existente por su nombre de usuario. Solo accesible para SuperAdmin.
-    /// </summary>
-    [HttpPut("{username}")]
-    [Authorize(Roles = "SuperAdmin")]
-    public async Task<IActionResult> UpdateUser(string username, [FromBody] UpdateUserRequest request)
-    {
-        var (user, error) = await _userService.UpdateUserAsync(username, request);
-        if (error != null) return NotFound(new { message = error });
-
-        return Ok(user);
-    }
-
-    /// <summary>
-    /// Elimina uno o m√°s usuarios por sus nombres de usuario. Solo accesible para SuperAdmin.
-    /// </summary>
-    [HttpDelete]
-    [Authorize(Roles = "SuperAdmin")]
-    public async Task<IActionResult> DeleteUsers([FromBody] DeleteUsersRequest request)
-    {
-        var (success, error) = await _userService.DeleteUsersAsync(request);
-        if (!success) return BadRequest(new { message = error });
-
-        return NoContent(); // 204 No Content es una respuesta est√°ndar para un DELETE exitoso.
-=======
-using Data.Entities.Enums;
-using Logica.Interfaces;
-using Logica.Models;
-using Microsoft.AspNetCore.Mvc;
+using System.Threading.Tasks;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace TechTrendEmporium.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Roles = "SuperAdmin")]
     public class UsersController : BaseController
     {
         private readonly IUserService _userService;
@@ -102,8 +36,8 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener usuarios");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting users");
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -116,7 +50,7 @@ namespace TechTrendEmporium.Api.Controllers
 
                 if (user == null)
                 {
-                    return NotFound($"Usuario con ID {id} no encontrado");
+                    return NotFound($"User with ID {id} not found");
                 }
 
                 var response = new GetUserResponse
@@ -130,8 +64,8 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener usuario {UserId}", id);
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting user {UserId}", id);
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -140,12 +74,11 @@ namespace TechTrendEmporium.Api.Controllers
         {
             try
             {
-                var user = await _userService.CreateUserAsync(
-                    request.Email, 
-                    request.Username, 
-                    request.Password, 
-                    request.Role);
-
+                var (user, error) = await _userService.CreateUserAsync(request);
+                if (error != null)
+                {
+                    return BadRequest(new { message = error });
+                }
                 var response = new GetUserResponse
                 {
                     Id = user.Id,
@@ -153,7 +86,7 @@ namespace TechTrendEmporium.Api.Controllers
                     Username = user.Username
                 };
 
-                return CreatedAtAction(nameof(GetUser), new { id = user.Id }, response);
+                return CreatedAtAction(nameof(GetUser), new { id = user!.Id }, user);
             }
             catch (InvalidOperationException ex)
             {
@@ -161,11 +94,28 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al crear usuario");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error creating user");
+                return StatusCode(500, "Internal server error");
             }
         }
+        [HttpPut("{username}")]
+        [Authorize(Roles = "SuperAdmin")]
+        public async Task<IActionResult> UpdateUser(string username, [FromBody] UpdateUserRequest request)
+        {
+            var (user, error) = await _userService.UpdateUserAsync(username, request);
+            if (error != null) return NotFound(new { message = error });
 
+            return Ok(user);
+        }
+        [HttpDelete]
+        [Authorize(Roles = "SuperAdmin")]
+        public async Task<IActionResult> DeleteUsers([FromBody] DeleteUsersRequest request)
+        {
+            var (success, error) = await _userService.DeleteUsersAsync(request);
+            if (!success) return BadRequest(new { message = error });
+
+            return NoContent(); // 204 No Content es una respuesta estÔøΩndar para un DELETE exitoso.
+        }
         // FakeStore Operations
 
         [HttpGet("fakestore")]
@@ -178,8 +128,8 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener usuarios de FakeStore");
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting users from FakeStore");
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -192,15 +142,15 @@ namespace TechTrendEmporium.Api.Controllers
 
                 if (user == null)
                 {
-                    return NotFound($"Usuario con ID {id} no encontrado en FakeStore");
+                    return NotFound($"User with ID {id} not found in FakeStore");
                 }
 
                 return Ok(user);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener usuario {UserId} de FakeStore", id);
-                return StatusCode(500, "Error interno del servidor");
+                _logger.LogError(ex, "Error getting user {UserId} from FakeStore", id);
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -215,15 +165,15 @@ namespace TechTrendEmporium.Api.Controllers
 
                 return Ok(new
                 {
-                    Message = "SincronizaciÛn de usuarios completada exitosamente",
+                    Message = "User synchronization completed successfully",
                     ImportedCount = importedCount,
                     Timestamp = DateTime.UtcNow
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error en sincronizaciÛn de usuarios desde FakeStore");
-                return StatusCode(500, "Error durante la sincronizaciÛn");
+                _logger.LogError(ex, "Error syncing users from FakeStore");
+                return StatusCode(500, "Error during synchronization");
             }
         }
 
@@ -236,7 +186,7 @@ namespace TechTrendEmporium.Api.Controllers
 
                 if (user == null)
                 {
-                    return NotFound($"Usuario con ID {fakeStoreId} no encontrado en FakeStore");
+                    return NotFound($"User with ID {fakeStoreId} not found in FakeStore");
                 }
 
                 return Ok(user);
@@ -247,8 +197,8 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error importando usuario {UserId} desde FakeStore", fakeStoreId);
-                return StatusCode(500, "Error durante la importaciÛn");
+                _logger.LogError(ex, "Error importing user {UserId} from FakeStore", fakeStoreId);
+                return StatusCode(500, "Error during import");
             }
         }
 
@@ -267,6 +217,5 @@ namespace TechTrendEmporium.Api.Controllers
             var bytes = guid.ToByteArray();
             return BitConverter.ToInt32(bytes, 0);
         }
->>>>>>> upstream/main
     }
 }

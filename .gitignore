@@ -121,3 +121,6 @@ StyleCopReport.xml
 [Dd]ist/
 wwwroot/lib/
 node_modules/
+
+# Ignore Windows reserved name
+NUL
