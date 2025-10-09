@@ -28,8 +28,14 @@ namespace Logica.Services
         public async Task<IEnumerable<GetUserResponse>> GetAllUsersAsync(CancellationToken cancellationToken = default)
         {
             var users = await _userRepository.GetAllAsync(cancellationToken);
-            // Mapeamos a UserResponse para no exponer datos sensibles como el PasswordHash
-            return users.Select(u => new UserResponse(u.Id, u.Name, u.Email, u.Username, u.Role.ToString()));
+
+            var model = users.Select(u => new GetUserResponse
+            {
+                Id = u.Id,
+                Email = u.Email,
+                Username = u.Username,
+            }).ToList();
+            return model;
         }
 
         public async Task<UserResponse?> GetUserByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -61,7 +67,7 @@ namespace Logica.Services
                 Username = request.Username,
                 Email = request.Email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-                Role = request.Role
+                Role = request.Role,
                 IsActive = true
             };
 

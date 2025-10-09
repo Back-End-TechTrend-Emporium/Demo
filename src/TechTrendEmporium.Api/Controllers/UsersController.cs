@@ -4,6 +4,7 @@ using Logica.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace TechTrendEmporium.Api.Controllers
 {
@@ -73,12 +74,11 @@ namespace TechTrendEmporium.Api.Controllers
         {
             try
             {
-                var user = await _userService.CreateUserAsync(
-                    request.Email, 
-                    request.Username, 
-                    request.Password, 
-                    request.Role);
-
+                var (user, error) = await _userService.CreateUserAsync(request);
+                if (error != null)
+                {
+                    return BadRequest(new { message = error });
+                }
                 var response = new GetUserResponse
                 {
                     Id = user.Id,
@@ -86,7 +86,7 @@ namespace TechTrendEmporium.Api.Controllers
                     Username = user.Username
                 };
 
-                return CreatedAtAction(nameof(GetUser), new { id = user.Id }, response);
+                return CreatedAtAction(nameof(GetUser), new { id = user!.Id }, user);
             }
             catch (InvalidOperationException ex)
             {
