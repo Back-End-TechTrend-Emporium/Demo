@@ -54,6 +54,19 @@ public static class DbSeeder
             });
             logger.LogInformation("SuperAdmin test user created.");
         }
+        if (!await context.Users.AnyAsync(u => u.Username == "Shopper one" || u.Email == "shopper@tte.com"))
+        {
+            context.Users.Add(new User
+            {
+                Name = "Shopper User",
+                Email = "shopper@tte.com",
+                Username = "Shopper one",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Password123!"),
+                Role = Role.Shopper,
+                IsActive = true
+            });
+            logger.LogInformation("Shopper user test created");
+        }
 
         // Guardar todos los cambios a la vez
         await context.SaveChangesAsync();
