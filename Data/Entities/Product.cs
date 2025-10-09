@@ -35,7 +35,7 @@ namespace Data.Entities
         [Column(TypeName = "decimal(2,1)")]
         public decimal RatingAverage { get; set; } = 0.0m;
 
-        public int RatingCount { get; set; } = 0;
+        public int RatingCount { get; set; } = 0; 
 
         public int InventoryTotal { get; set; } = 0;
 

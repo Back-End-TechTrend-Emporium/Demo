@@ -328,7 +328,8 @@ namespace Logica.Services
             try
             {
                 var products = await _productRepository.GetByCreatorIdAsync(userId);
-                return products.Select(ProductMapper.ToSummaryDto);
+                return products.Select(p => p.ToSummaryDto());
+
             }
             catch (Exception ex)
             {
@@ -384,19 +385,16 @@ namespace Logica.Services
         {
             return new ProductDto
             {
-                Id = Guid.NewGuid(), // Generar GUID único para productos de FakeStore
+                Id = Guid.NewGuid(),
                 Title = fakeStoreProduct.Title,
                 Price = fakeStoreProduct.Price,
                 Description = fakeStoreProduct.Description,
                 Category = fakeStoreProduct.Category,
                 Image = fakeStoreProduct.Image,
-                Rating = fakeStoreProduct.Rating != null ? new RatingDto
-                {
-                    Rate = fakeStoreProduct.Rating.Rate,
-                    Count = fakeStoreProduct.Rating.Count
-                } : null
+                Rating = fakeStoreProduct.Rating != null
+                    ? new RatingDto { Rate = fakeStoreProduct.Rating.Rate, Count = fakeStoreProduct.Rating.Count }
+                    : null
             };
-            
         }
 
         #endregion

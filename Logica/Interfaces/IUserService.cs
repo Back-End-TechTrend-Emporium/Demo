@@ -13,11 +13,9 @@ namespace Logica.Interfaces
         Task<(UserResponse? User, string? Error)> UpdateUserAsync(string username, UpdateUserRequest request, CancellationToken cancellationToken = default);
         Task<(bool Success, string? Error)> DeleteUsersAsync(DeleteUsersRequest request, CancellationToken cancellationToken = default);
 
-        // FakeStore user operations
+        
         Task<IEnumerable<GetUserResponse>> GetUsersFromFakeStoreAsync();
         Task<GetUserResponse?> GetUserFromFakeStoreAsync(int id);
-
-        // Sync operations
         Task<int> SyncAllUsersFromFakeStoreAsync();
         Task<GetUserResponse?> ImportUserFromFakeStoreAsync(int fakeStoreId);
     }

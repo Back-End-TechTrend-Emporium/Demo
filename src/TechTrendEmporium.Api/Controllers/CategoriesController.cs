@@ -10,6 +10,8 @@ namespace TechTrendEmporium.Api.Controllers
     [Route("api/[controller]")]
     public class CategoriesController : BaseController
     {
+        #region Fields and Constructor
+
         private readonly ICategoryService _categoryService;
         private readonly IProductService _productService;
         private readonly ILogger<CategoriesController> _logger;
@@ -24,9 +26,84 @@ namespace TechTrendEmporium.Api.Controllers
             _logger = logger;
         }
 
-       
+        #endregion
 
-       
+        #region Public Category Operations
+
+        /// <summary>
+        /// Get all approved categories (simplified view)
+        /// </summary>
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<CategorySimpleDto>>> GetCategories()
+        {
+            try
+            {
+                var categories = await _categoryService.GetApprovedCategoriesAsync();
+                var simplifiedCategories = categories.Select(c => new CategorySimpleDto
+                {
+                    Id = c.Id,
+                    Name = c.Name
+                });
+
+                return Ok(simplifiedCategories);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting categories");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Get specific category by ID
+        /// </summary>
+        [HttpGet("{id:guid}")]
+        public async Task<ActionResult<CategoryDto>> GetCategory(Guid id)
+        {
+            try
+            {
+                var category = await _categoryService.GetCategoryByIdAsync(id);
+                
+                if (category == null)
+                {
+                    return NotFound($"Category with ID {id} not found");
+                }
+
+                return Ok(category);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting category {CategoryId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Search categories by term
+        /// </summary>
+        [HttpGet("search")]
+        public async Task<ActionResult<IEnumerable<CategoryDto>>> SearchCategories([FromQuery] string searchTerm)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    return BadRequest("Search term is required");
+                }
+
+                var categories = await _categoryService.SearchCategoriesAsync(searchTerm);
+                return Ok(categories);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error searching categories");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Get products filtered by category from FakeStore
+        /// </summary>
         [HttpGet("store/products")]
         public async Task<ActionResult<CategoryFilterResponseDto>> GetProductsByCategory([FromQuery] string category)
         {
@@ -54,24 +131,43 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-      
+        #endregion
+
+        #region Administrative Operations (SuperAdmin/Employee Only)
+
+        /// <summary>
+        /// Get all categories (administrative view)
+        /// </summary>
+        [HttpGet("all")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult<IEnumerable<CategoryDto>>> GetAllCategories()
+        {
+            try
+            {
+                // Note: Consider adding role-based authorization here if needed
+                var categories = await _categoryService.GetAllCategoriesAsync();
+                return Ok(categories);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting all categories");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Create new category (SuperAdmin/Employee only)
+        /// </summary>
         [HttpPost]
         [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<CategoryCreateResponseDto>> CreateCategory(CategoryCreateDto categoryDto)
         {
             try
             {
-                // Verificar que solo SuperAdmin o Employee puedan crear categorías
-                var currentUserRole = GetCurrentUserRole();
-                if (!currentUserRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) && 
-                    !currentUserRole.Equals("Employee", StringComparison.OrdinalIgnoreCase))
+                // Authorization check
+                if (!HasAdministrativePermissions())
                 {
-                    var forbiddenResponse = new CategoryCreateResponseDto
-                    {
-                        CategoryId = Guid.Empty,
-                        Message = "Failure"
-                    };
-                    return Forbid("Only SuperAdmin and Employee can create categories");
+                    return CreateForbiddenResponse("Only SuperAdmin and Employee can create categories");
                 }
 
                 var createdBy = GetCurrentUserId();
@@ -99,60 +195,17 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-      
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<CategorySimpleDto>>> GetCategories()
-        {
-            try
-            {
-                var categories = await _categoryService.GetApprovedCategoriesAsync();
-                var simplifiedCategories = categories.Select(c => new CategorySimpleDto
-                {
-                    Id = c.Id,
-                    Name = c.Name
-                });
-
-                return Ok(simplifiedCategories);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting categories");
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
-        [HttpGet("{id:guid}")]
-        public async Task<ActionResult<CategoryDto>> GetCategory(Guid id)
-        {
-            try
-            {
-                var category = await _categoryService.GetCategoryByIdAsync(id);
-                
-                if (category == null)
-                {
-                    return NotFound($"Category with ID {id} not found");
-                }
-
-                return Ok(category);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting category {CategoryId}", id);
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
-       
+        /// <summary>
+        /// Update existing category (SuperAdmin/Employee only)
+        /// </summary>
         [HttpPut]
         [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<CategoryResponseDto>> UpdateCategory(CategoryUpdateDto categoryDto)
         {
             try
             {
-                // Verificar que solo SuperAdmin o Employee puedan editar categorías
-                var currentUserRole = GetCurrentUserRole();
-                if (!currentUserRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) && 
-                    !currentUserRole.Equals("Employee", StringComparison.OrdinalIgnoreCase))
+                // Authorization check
+                if (!HasAdministrativePermissions())
                 {
                     return Forbid("Only SuperAdmin and Employee can update categories");
                 }
@@ -166,7 +219,7 @@ namespace TechTrendEmporium.Api.Controllers
 
                 var response = new CategoryResponseDto
                 {
-                    Message = "Updated successfuly"
+                    Message = "Updated successfully"
                 };
 
                 return Ok(response);
@@ -178,6 +231,9 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
+        /// <summary>
+        /// Delete category (SuperAdmin only) or mark for deletion (Employee)
+        /// </summary>
         [HttpDelete]
         [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<CategoryResponseDto>> DeleteCategory(CategoryDeleteDto deleteDto)
@@ -186,15 +242,14 @@ namespace TechTrendEmporium.Api.Controllers
             {
                 var currentUserRole = GetCurrentUserRole();
                 
-               
-                if (!currentUserRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) && 
-                    !currentUserRole.Equals("Employee", StringComparison.OrdinalIgnoreCase))
+                // Basic authorization check
+                if (!HasAdministrativePermissions())
                 {
                     return Forbid("Only SuperAdmin and Employee can delete categories");
                 }
 
-               
-                if (currentUserRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase))
+                // SuperAdmin can delete immediately
+                if (IsSuperAdmin())
                 {
                     var success = await _categoryService.DeleteCategoryAsync(deleteDto.Id);
 
@@ -203,26 +258,16 @@ namespace TechTrendEmporium.Api.Controllers
                         return NotFound($"Category with ID {deleteDto.Id} not found");
                     }
 
-                    var response = new CategoryResponseDto
-                    {
-                        Message = "Deleted successfuly"                     
-                    };
-
-                    return Ok(response);
+                    return Ok(new CategoryResponseDto { Message = "Deleted successfully" });
                 }
-               
-                else if (currentUserRole.Equals("Employee", StringComparison.OrdinalIgnoreCase))
-                {
-                    
-                    var response = new CategoryResponseDto
-                    {
-                        Message = "Category marked as pending for deletion"
-                    };
-
-                    return Ok(response);
-                }
-
                 
+                // Employee can only mark for deletion
+                if (IsEmployee())
+                {
+                    // TODO: Implement pending deletion logic in service
+                    return Ok(new CategoryResponseDto { Message = "Category marked as pending for deletion" });
+                }
+
                 return Forbid("Insufficient permissions to delete categories");
             }
             catch (InvalidOperationException ex)
@@ -237,38 +282,21 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        [HttpGet("all")]
-        [Authorize(Roles = "Employee, SuperAdmin")]
-        public async Task<ActionResult<IEnumerable<CategoryDto>>> GetAllCategories()
-        {
-            try
-            {
-       
-                var categories = await _categoryService.GetAllCategoriesAsync();
-                return Ok(categories);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting all categories");
-                return StatusCode(500, "Internal server error");
-            }
-        }
+        #region Approval Workflow Operations
 
-       
+        /// <summary>
+        /// Get categories pending approval (SuperAdmin/Employee only)
+        /// </summary>
         [HttpGet("pending-approval")]
         [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<IEnumerable<CategoryDto>>> GetPendingApproval()
         {
             try
             {
-                var currentUserRole = GetCurrentUserRole();
-                if (!currentUserRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) &&
-                    !currentUserRole.Equals("Employee", StringComparison.OrdinalIgnoreCase))
+                if (!HasAdministrativePermissions())
                 {
-                    return Forbid("Only SuperAdmin and Employee can update categories");
+                    return Forbid("Only SuperAdmin and Employee can view pending categories");
                 }
-
-                
 
                 var categories = await _categoryService.GetPendingApprovalAsync();
                 return Ok(categories);
@@ -280,18 +308,18 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-       
+        /// <summary>
+        /// Approve category (SuperAdmin/Employee only)
+        /// </summary>
         [HttpPost("{id:guid}/approve")]
         [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult> ApproveCategory(Guid id)
         {
             try
             {
-                var currentUserRole = GetCurrentUserRole();
-                if (!currentUserRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) &&
-                    !currentUserRole.Equals("Employee", StringComparison.OrdinalIgnoreCase))
+                if (!HasAdministrativePermissions())
                 {
-                    return Forbid("Only SuperAdmin and Employee can update categories");
+                    return Forbid("Only SuperAdmin and Employee can approve categories");
                 }
 
                 var approvedBy = GetCurrentUserId();
@@ -311,18 +339,18 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-       
+        /// <summary>
+        /// Reject category (SuperAdmin/Employee only)
+        /// </summary>
         [HttpPost("{id:guid}/reject")]
         [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult> RejectCategory(Guid id)
         {
             try
             {
-                var currentUserRole = GetCurrentUserRole();
-                if (!currentUserRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) &&
-                    !currentUserRole.Equals("Employee", StringComparison.OrdinalIgnoreCase))
+                if (!HasAdministrativePermissions())
                 {
-                    return Forbid("Only SuperAdmin and Employee can update categories");
+                    return Forbid("Only SuperAdmin and Employee can reject categories");
                 }
 
                 var success = await _categoryService.RejectCategoryAsync(id);
@@ -341,28 +369,13 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-       
-        [HttpGet("search")]
-        public async Task<ActionResult<IEnumerable<CategoryDto>>> SearchCategories([FromQuery] string searchTerm)
-        {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(searchTerm))
-                {
-                    return BadRequest("Search term is required");
-                }
+        #endregion
 
-                var categories = await _categoryService.SearchCategoriesAsync(searchTerm);
-                return Ok(categories);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error searching categories");
-                return StatusCode(500, "Internal server error");
-            }
-        }
+        #region FakeStore Integration Operations
 
-       
+        /// <summary>
+        /// Get categories from FakeStore API (without importing)
+        /// </summary>
         [HttpGet("fakestore")]
         public async Task<ActionResult<IEnumerable<string>>> GetCategoriesFromFakeStore()
         {
@@ -378,7 +391,9 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-      
+        /// <summary>
+        /// Synchronize categories from FakeStore API
+        /// </summary>
         [HttpPost("sync-from-fakestore")]
         public async Task<ActionResult<object>> SyncCategoriesFromFakeStore()
         {
@@ -401,6 +416,50 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-      
+        #endregion
+
+        #region Private Helper Methods
+
+        /// <summary>
+        /// Checks if current user has administrative permissions (SuperAdmin or Employee)
+        /// </summary>
+        private bool HasAdministrativePermissions()
+        {
+            var currentUserRole = GetCurrentUserRole();
+            return currentUserRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) || 
+                   currentUserRole.Equals("Employee", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Checks if current user is SuperAdmin
+        /// </summary>
+        private bool IsSuperAdmin()
+        {
+            return GetCurrentUserRole().Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Checks if current user is Employee
+        /// </summary>
+        private bool IsEmployee()
+        {
+            return GetCurrentUserRole().Equals("Employee", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Creates a forbidden response with proper error structure
+        /// </summary>
+        private ActionResult<CategoryCreateResponseDto> CreateForbiddenResponse(string message)
+        {
+            var forbiddenResponse = new CategoryCreateResponseDto
+            {
+                CategoryId = Guid.Empty,
+                Message = "Failure"
+            };
+            return Forbid(message);
+        }
+
+        #endregion
     }
+    #endregion
 }
