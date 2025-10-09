@@ -1,4 +1,4 @@
-﻿namespace Logica.Models
+﻿namespace Logica.Models.Products
 {
     public sealed class ProductListItemDto
     {

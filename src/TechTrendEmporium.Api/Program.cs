@@ -8,6 +8,8 @@ using External.FakeStore;
 using Logica.Interfaces;
 using Logica.Repositories;
 using Logica.Services;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Logica.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
@@ -186,6 +188,12 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// === Health Checks Configuration ===
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("Database")
+    .AddCheck<FakeStoreHealthCheck>("FakeStore")
+    .AddCheck<ServiceHealthCheck>("Services");
+
 var app = builder.Build();
 
 // === Create/verify database ===
@@ -294,6 +302,44 @@ app.UseAuthentication(); // 1. Identify who the user is (read the token).
 app.UseAuthorization();  // 2. Verify if that user has permissions.
 
 app.MapControllers();
-app.MapGet("/health", () => "Healthy");
+
+// === Health Check endpoints ===
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var response = new
+        {
+            Status = report.Status.ToString(),
+            Duration = report.TotalDuration.TotalMilliseconds,
+            Checks = report.Entries.ToDictionary(
+                kvp => kvp.Key,
+                kvp => new
+                {
+                    Status = kvp.Value.Status.ToString(),
+                    Description = kvp.Value.Description,
+                    Duration = kvp.Value.Duration.TotalMilliseconds,
+                    Data = kvp.Value.Data
+                }
+            ),
+            Timestamp = DateTime.UtcNow
+        };
+        await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(response));
+    }
+});
+
+app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false // No checks, just liveness
+});
+
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => true // All checks for readiness
+});
+
+// Simple health endpoint for basic monitoring
+app.MapGet("/ping", () => new { Status = "Alive", Timestamp = DateTime.UtcNow });
 
 app.Run();
