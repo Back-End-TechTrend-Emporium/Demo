@@ -84,7 +84,7 @@ namespace Logica.Services
                 return (null, "Usuario no encontrado.");
             }
 
-            // Actualizamos solo los campos que vienen en la petición
+            // Actualizamos solo los campos que vienen en la peticiÃ³n
             if (!string.IsNullOrEmpty(request.Name)) user.Name = request.Name;
             if (!string.IsNullOrEmpty(request.Email)) user.Email = request.Email;
             if (!string.IsNullOrEmpty(request.Password)) user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
