@@ -24,12 +24,8 @@ namespace Logica.Services
             _externalMappingRepository = externalMappingRepository;
         }
 
-<<<<<<< HEAD
-        public async Task<IEnumerable<UserResponse>> GetAllUsersAsync(CancellationToken cancellationToken = default)
-=======
         // Local user operations
         public async Task<IEnumerable<GetUserResponse>> GetAllUsersAsync(CancellationToken cancellationToken = default)
->>>>>>> upstream/main
         {
             var users = await _userRepository.GetAllAsync(cancellationToken);
             // Mapeamos a UserResponse para no exponer datos sensibles como el PasswordHash
@@ -66,6 +62,7 @@ namespace Logica.Services
                 Email = request.Email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                 Role = request.Role
+                IsActive = true
             };
 
             var addedUser = await _userRepository.AddAsync(user, cancellationToken);
