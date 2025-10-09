@@ -39,7 +39,7 @@ namespace Logica.Repositories
                 .FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower(), cancellationToken);
         }
 
-        // IMPLEMENTACIÓN EXACTA de la firma de la interfaz
+        
         public async Task<User?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
         {
             return await _context.Users

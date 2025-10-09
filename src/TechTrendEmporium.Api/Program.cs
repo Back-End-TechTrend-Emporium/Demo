@@ -12,26 +12,26 @@ using Logica.Services;
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
 
-// === CARGAR USER SECRETS EN PRODUCTION PARA TESTING LOCAL ===
+// === LOAD USER SECRETS IN PRODUCTION FOR LOCAL TESTING ===
 if (builder.Environment.IsProduction())
 {
     builder.Configuration.AddUserSecrets<Program>();
     Console.WriteLine("[DEBUG] User Secrets loaded for Production environment");
 }
 
-// === Resolver connection string según el entorno ===
+// === Resolve connection string according to environment ===
 string? connectionString;
 
 if (builder.Environment.IsDevelopment())
 {
-    // En desarrollo, usar la conexión local del appsettings.Development.json
+    // In development, use local connection from appsettings.Development.json
     connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     Console.WriteLine($"[DEVELOPMENT] Using local database: {connectionString}");
 }
 else
 {
-    // En producción, usar la conexión de Azure desde múltiples fuentes
-    connectionString =
+    // In production, use Azure connection from multiple sources
+    connectionString = 
         builder.Configuration["ConnectionStrings:ProductionConnection"] // User Secrets (local testing)
         ?? builder.Configuration.GetConnectionString("ProductionConnection") // User Secrets (local testing)
         ?? builder.Configuration.GetConnectionString("DefaultConnection") // Azure App Service Connection String
@@ -43,8 +43,8 @@ else
 
     Console.WriteLine($"[PRODUCTION] Using Azure database");
     Console.WriteLine($"[DEBUG] Connection string found: {!string.IsNullOrEmpty(connectionString)}");
-
-    // Debug adicional para Azure App Service
+    
+    // Additional debug for Azure App Service
     if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME")))
     {
         Console.WriteLine($"[DEBUG] Running in Azure App Service: {Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME")}");
@@ -54,7 +54,7 @@ else
 
 if (string.IsNullOrWhiteSpace(connectionString))
 {
-    // Agregar debugging para ver qué configuración está disponible
+    // Add debugging to see what configuration is available
     Console.WriteLine("[DEBUG] Available configuration keys:");
     foreach (var item in builder.Configuration.AsEnumerable())
     {
@@ -65,11 +65,11 @@ if (string.IsNullOrWhiteSpace(connectionString))
     }
 
     throw new InvalidOperationException(
-        "No se encontró la cadena de conexión. " +
-        "Define la Connection String apropiada para el entorno actual.");
+        "Connection string not found. " +
+        "Define the appropriate Connection String for the current environment.");
 }
 
-// === EF Core (con reintentos) ===
+// === EF Core (with retries) ===
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
         connectionString,
@@ -78,7 +78,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             maxRetryDelay: TimeSpan.FromSeconds(10),
             errorNumbersToAdd: null)));
 
-// === HttpClient para FakeStore API ===
+// === HttpClient for FakeStore API ===
 builder.Services.AddHttpClient<IFakeStoreApiService, FakeStoreApiService>(client =>
 {
     var fakeStoreConfig = builder.Configuration.GetSection("FakeStoreApi");
@@ -114,14 +114,14 @@ builder.Services.AddScoped<IStoreService, StoreService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
-// === Configuración de Autenticación JWT ===
-// Obtener la clave JWT de múltiples ubicaciones para compatibilidad con Azure
-var jwtKey = configuration["Jwt:Key"]
-          ?? configuration["Jwt_Key"]
+// === JWT Authentication Configuration ===
+// Get JWT key from multiple locations for Azure compatibility
+var jwtKey = configuration["Jwt:Key"] 
+          ?? configuration["Jwt_Key"] 
           ?? Environment.GetEnvironmentVariable("Jwt_Key")
           ?? Environment.GetEnvironmentVariable("Jwt__Key");
 
-//Debug ayudado con la IA
+//Debug aided by AI
 if (string.IsNullOrWhiteSpace(jwtKey))
 {
     Console.WriteLine("[ERROR] JWT Key not found in any configuration source");
@@ -133,7 +133,7 @@ if (string.IsNullOrWhiteSpace(jwtKey))
             Console.WriteLine($"  {item.Key} = {(item.Value?.Length > 0 ? "[SET]" : "[EMPTY]")}");
         }
     }
-    throw new InvalidOperationException("La clave JWT no fue encontrada en ninguna ubicación válida.");
+    throw new InvalidOperationException("JWT key was not found in any valid location.");
 }
 
 Console.WriteLine($"[DEBUG] JWT Key found: {jwtKey.Length} characters");
@@ -154,20 +154,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// === Servicios estándar de la API ===
+// === Standard API services ===
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// === Configuración de Swagger con soporte para JWT ===
+// === Swagger configuration with JWT support ===
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "TechTrendEmporium.Api", Version = "v1" });
     c.EnableAnnotations();
 
-    // Añade la definición de seguridad para Bearer (JWT)
+    // Add security definition for Bearer (JWT)
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "Autorización JWT usando el esquema Bearer. Ingresa 'Bearer' [espacio] y luego tu token.",
+        Description = "JWT Authorization using the Bearer scheme. Enter 'Bearer' [space] and then your token.",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
@@ -188,7 +188,7 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// === Crear/verificar base de datos ===
+// === Create/verify database ===
 if (builder.Configuration.GetValue<bool>("EF:ApplyMigrationsOnStartup"))
 {
     using var scope = app.Services.CreateScope();
@@ -198,8 +198,8 @@ if (builder.Configuration.GetValue<bool>("EF:ApplyMigrationsOnStartup"))
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
         logger.LogInformation("Setting up database...");
-
-        // Para desarrollo, usar EnsureCreated es más simple
+        
+        // For development, using EnsureCreated is simpler
         if (builder.Environment.IsDevelopment())
         {
             logger.LogInformation("Creating/verifying development database...");
@@ -208,7 +208,7 @@ if (builder.Configuration.GetValue<bool>("EF:ApplyMigrationsOnStartup"))
         }
         else
         {
-            // En producción, usar migraciones
+            // In production, use migrations
             logger.LogInformation("Applying database migrations...");
             await context.Database.MigrateAsync();
             logger.LogInformation("Database migrations applied successfully");
@@ -272,7 +272,7 @@ if (builder.Configuration.GetValue<bool>("EnsureSystemUser", true))
     }
 }
 
-// === Swagger (habilitable en Prod con Swagger:Enabled y Swagger:ServeAtRoot) ===
+// === Swagger (configurable in Prod with Swagger:Enabled and Swagger:ServeAtRoot) ===
 var swaggerEnabled = builder.Configuration.GetValue<bool>("Swagger:Enabled",
                       app.Environment.IsDevelopment());
 
@@ -283,15 +283,15 @@ if (swaggerEnabled)
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "TechTrendEmporium.Api v1");
         if (builder.Configuration.GetValue<bool>("Swagger:ServeAtRoot", false))
-            c.RoutePrefix = string.Empty; // sirve Swagger en "/"
+            c.RoutePrefix = string.Empty; // serve Swagger at "/"
     });
 }
 
 app.UseHttpsRedirection();
 
-// === ¡MUY IMPORTANTE EL ORDEN! ===
-app.UseAuthentication(); // 1. Identifica quién es el usuario (lee el token).
-app.UseAuthorization();  // 2. Verifica si ese usuario tiene permisos.
+// === VERY IMPORTANT THE ORDER! ===
+app.UseAuthentication(); // 1. Identify who the user is (read the token).
+app.UseAuthorization();  // 2. Verify if that user has permissions.
 
 app.MapControllers();
 app.MapGet("/health", () => "Healthy");

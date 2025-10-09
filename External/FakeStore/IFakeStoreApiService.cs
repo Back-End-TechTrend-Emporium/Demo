@@ -18,6 +18,7 @@ namespace External.FakeStore
         Task<FakeStoreCartResponse?> CreateCartAsync(FakeStoreCartCreateRequest cartRequest);
         Task<FakeStoreCartResponse?> UpdateCartAsync(int cartId, FakeStoreCartUpdateRequest cartRequest);
         Task<FakeStoreCartResponse?> DeleteCartAsync(int cartId);
+        Task<IEnumerable<FakeStoreCartResponse>> GetUserCartsAsync(int userId);
 
         // Users
         Task<IEnumerable<FakeStoreUserResponse>> GetUsersAsync();

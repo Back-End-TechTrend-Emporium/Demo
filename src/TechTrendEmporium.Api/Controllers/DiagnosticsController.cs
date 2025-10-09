@@ -43,7 +43,7 @@ namespace TechTrendEmporium.Api.Controllers
         {
             try
             {
-                // Test simple para verificar que los servicios funcionan
+                // Simple test to verify that services work
                 _logger.LogInformation("Testing FakeStore connection...");
                 
                 var result = new

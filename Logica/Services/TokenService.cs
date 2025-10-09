@@ -16,16 +16,16 @@ namespace Logica.Services
 
         public TokenService(IConfiguration config)
         {
-            // IA debug ayuda Buscar la clave JWT en múltiples ubicaciones para compatibilidad con Azure
+            // AI debug help - Search for JWT key in multiple locations for Azure compatibility
             var secretKey = config["Jwt:Key"] 
                          ?? config["Jwt_Key"] 
                          ?? Environment.GetEnvironmentVariable("Jwt_Key")
                          ?? Environment.GetEnvironmentVariable("Jwt__Key")
-                         ?? throw new InvalidOperationException("La clave JWT no fue encontrada en ninguna ubicación válida.");
+                         ?? throw new InvalidOperationException("JWT key was not found in any valid location.");
             
             if (string.IsNullOrWhiteSpace(secretKey))
             {
-                throw new InvalidOperationException("La clave JWT está vacía o es nula.");
+                throw new InvalidOperationException("JWT key is empty or null.");
             }
 
             _key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));

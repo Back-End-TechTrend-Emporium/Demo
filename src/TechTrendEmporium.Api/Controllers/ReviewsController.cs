@@ -13,7 +13,7 @@ namespace TechTrendEmporium.Api.Controllers
         private readonly IReviewService _service;
         public ReviewsController(IReviewService service) => _service = service;
 
-        // GET api/store/products/{productId}/reviews
+       
         [HttpGet]
         // [Authorize] // <- descomenta si quieres exigir token
         [SwaggerOperation(Tags = new[] { "Products" })]

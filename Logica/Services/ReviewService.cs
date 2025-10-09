@@ -1,4 +1,4 @@
-﻿using Data;
+using Data;
 using Data.Entities;
 using Logica.Interfaces;
 using Logica.Mappers;
@@ -44,48 +44,56 @@ namespace Logica.Services
             {
                 await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
-                // 1) Validar producto
-                var product = await _products.GetByIdAsync(productId);
-                if (product is null)
-                    throw new KeyNotFoundException($"Product '{productId}' not found.");
-
-                // 2) Resolver usuario por username
-                var user = await _users.GetByUsernameAsync(dto.User, ct);
-                if (user is null)
-                    throw new KeyNotFoundException($"User '{dto.User}' not found.");
-
-                // 3) Evitar review duplicada del mismo usuario
-                var alreadyReviewed = await _db.Reviews
-                    .AsNoTracking()
-                    .AnyAsync(r => r.ProductId == productId && r.UserId == user.Id, ct);
-
-                if (alreadyReviewed)
-                    throw new InvalidOperationException("User has already reviewed this product.");
-
-                // 4) Crear review
-                var entity = new Review
+                try
                 {
-                    ProductId = productId,
-                    UserId = user.Id,
-                    Rating = dto.Rating,
-                    Comment = dto.Comment
-                };
+                    // 1) Validar producto
+                    var product = await _products.GetByIdAsync(productId);
+                    if (product is null)
+                        throw new KeyNotFoundException($"Product '{productId}' not found.");
 
-                // Guardar review a través del repositorio (mismo DbContext/Scope)
-                var saved = await _reviews.AddAsync(entity, ct);
+                    // 2) Resolver usuario por username
+                    var user = await _users.GetByUsernameAsync(dto.User, ct);
+                    if (user is null)
+                        throw new KeyNotFoundException($"User '{dto.User}' not found.");
 
-                // 5) Recalcular agregados incrementalmente
-                var newCount = product.RatingCount + 1;
-                var sum = (decimal)product.RatingAverage * product.RatingCount + dto.Rating;
-                product.RatingCount = newCount;
-                product.RatingAverage = Math.Round(sum / newCount, 1, MidpointRounding.AwayFromZero);
-                product.UpdatedAt = DateTime.UtcNow;
+                    // 3) Evitar review duplicada del mismo usuario
+                    var alreadyReviewed = await _db.Reviews
+                        .AsNoTracking()
+                        .AnyAsync(r => r.ProductId == productId && r.UserId == user.Id, ct);
 
-                await _products.UpdateAsync(product);
+                    if (alreadyReviewed)
+                        throw new InvalidOperationException("User has already reviewed this product.");
 
-                await tx.CommitAsync(ct);
+                    // 4) Crear review
+                    var entity = new Review
+                    {
+                        ProductId = productId,
+                        UserId = user.Id,
+                        Rating = dto.Rating,
+                        Comment = dto.Comment
+                    };
 
-                return saved.ToDto();
+                    // Guardar review a través del repositorio (mismo DbContext/Scope)
+                    var saved = await _reviews.AddAsync(entity, ct);
+
+                    // 5) Recalcular agregados incrementalmente
+                    var newCount = product.RatingCount + 1;
+                    var sum = (decimal)product.RatingAverage * product.RatingCount + dto.Rating;
+                    product.RatingCount = newCount;
+                    product.RatingAverage = Math.Round(sum / newCount, 1, MidpointRounding.AwayFromZero);
+                    product.UpdatedAt = DateTime.UtcNow;
+
+                    await _products.UpdateAsync(product);
+
+                    await tx.CommitAsync(ct);
+
+                    return saved.ToDto();
+                }
+                catch
+                {
+                    await tx.RollbackAsync(ct);
+                    throw;
+                }
             });
         }
     }
