@@ -1,6 +1,6 @@
 using Logica.Models.Products;
 
-namespace Logica.Models.Category
+namespace Logica.Models.Category.Responses
 {
     public class CategoryFilterResponseDto
     {

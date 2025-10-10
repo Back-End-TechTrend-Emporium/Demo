@@ -1,11 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Logica.Models
+namespace Logica.Models.Auth.Create
 {
-    public record AdminRegisterRequest(
+    public record ShopperRegisterRequest(
         [Required][EmailAddress] string Email,
         [Required] string Username,
-        [Required] string Password,
-        [Required] string Role
+        [Required] string Password
     );
 }

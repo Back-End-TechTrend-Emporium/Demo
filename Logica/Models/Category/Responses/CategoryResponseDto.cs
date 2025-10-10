@@ -1,4 +1,4 @@
-namespace Logica.Models.Category
+namespace Logica.Models.Category.Responses
 {
     public class CategoryResponseDto
     {

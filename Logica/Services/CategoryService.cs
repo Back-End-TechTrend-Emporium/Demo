@@ -3,7 +3,8 @@ using Data.Entities.Enums;
 using External.FakeStore;
 using Logica.Interfaces;
 using Logica.Mappers;
-using Logica.Models.Category;
+using Logica.Models.Category.Requests;
+using Logica.Models.Category.Responses;
 
 namespace Logica.Services
 {

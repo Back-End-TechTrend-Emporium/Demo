@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Logica.Models.Category
+namespace Logica.Models.Category.Requests
 {
     public class CategoryDeleteDto
     {

@@ -1,6 +1,7 @@
 using Logica.Interfaces;
-using Logica.Models.Category;
+using Logica.Models.Category.Requests;
 using Logica.Models.Products;
+using Logica.Models.Category.Responses;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

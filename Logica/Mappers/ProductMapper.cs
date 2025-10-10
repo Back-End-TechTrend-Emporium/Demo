@@ -1,6 +1,7 @@
 using Data.Entities;
 using Logica.Models;
 using Logica.Models.Products;
+using Logica.Models.Carts;
 
 namespace Logica.Mappers
 {

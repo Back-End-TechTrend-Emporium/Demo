@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Logica.Models.Category
+namespace Logica.Models.Category.Responses
 {
     public class CategoryDto
     {

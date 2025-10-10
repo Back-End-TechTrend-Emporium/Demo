@@ -1,11 +1,7 @@
 using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Logica.Models.Category
+namespace Logica.Models.Carts
 {
     public class CartItemDto
     {

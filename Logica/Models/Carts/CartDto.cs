@@ -1,11 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Logica.Models
+namespace Logica.Models.Carts
 {
     public class CartDto
     {
@@ -43,22 +39,5 @@ namespace Logica.Models
         /// Estado del carrito
         /// </summary>
         public string Status { get; set; } = string.Empty;
-    }
-
-    public class CartItemSimpleDto
-    {
-        public Guid ProductId { get; set; }
-        public string ProductTitle { get; set; } = string.Empty;
-        public int Quantity { get; set; }
-        public decimal UnitPrice { get; set; }
-        public decimal TotalPrice { get; set; }
-        public string? ProductImage { get; set; }
-    }
-
-    public class CouponAppliedDto
-    {
-        public string CouponCode { get; set; } = string.Empty;
-        
-        public decimal DiscountPercentage { get; set; }
     }
 }

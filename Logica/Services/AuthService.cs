@@ -1,13 +1,15 @@
 using Data.Entities;
 using Data.Entities.Enums;
 using Logica.Interfaces;
-using Logica.Models;
 using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using System.IdentityModel.Tokens.Jwt;
 using BCrypt.Net;
 using Microsoft.Extensions.Logging;
+using Logica.Models.Auth.Create;
+using Logica.Models.Auth.Login;
+using Logica.Models.Auth.Reponse;
 
 namespace Logica.Services
 {

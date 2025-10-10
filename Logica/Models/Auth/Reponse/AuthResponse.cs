@@ -1,6 +1,6 @@
 using System;
 
-namespace Logica.Models
+namespace Logica.Models.Auth.Reponse
 {
     public record AuthResponse(
         Guid Id,

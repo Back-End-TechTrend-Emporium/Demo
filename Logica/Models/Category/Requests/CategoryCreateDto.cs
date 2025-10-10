@@ -1,13 +1,9 @@
-using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace Logica.Models.Category
+namespace Logica.Models.Category.Requests
 {
-    public class CategoryUpdateDto
+    public class CategoryCreateDto
     {
-        [Required]
-        public Guid Id { get; set; }
-        
         [Required]
         public required string Name { get; set; }
 
