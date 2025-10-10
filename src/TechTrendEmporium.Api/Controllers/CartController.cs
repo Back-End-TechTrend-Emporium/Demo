@@ -11,7 +11,7 @@ namespace TechTrendEmporium.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize] // ? IMPORTANTE: Requiere autenticación para todos los endpoints
+    [Authorize(Roles = "Shopper")]
     public class CartController : BaseController
     {
         private readonly ICartService _cartService;

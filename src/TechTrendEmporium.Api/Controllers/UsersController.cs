@@ -1,12 +1,16 @@
-using Data.Entities.Enums;
+﻿using Data.Entities.Enums;
 using Logica.Interfaces;
 using Logica.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Threading.Tasks;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace TechTrendEmporium.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Roles = "SuperAdmin")]
     public class UsersController : BaseController
     {
         private readonly IUserService _userService;
@@ -70,12 +74,11 @@ namespace TechTrendEmporium.Api.Controllers
         {
             try
             {
-                var user = await _userService.CreateUserAsync(
-                    request.Email, 
-                    request.Username, 
-                    request.Password, 
-                    request.Role);
-
+                var (user, error) = await _userService.CreateUserAsync(request);
+                if (error != null)
+                {
+                    return BadRequest(new { message = error });
+                }
                 var response = new GetUserResponse
                 {
                     Id = user.Id,
@@ -83,7 +86,7 @@ namespace TechTrendEmporium.Api.Controllers
                     Username = user.Username
                 };
 
-                return CreatedAtAction(nameof(GetUser), new { id = user.Id }, response);
+                return CreatedAtAction(nameof(GetUser), new { id = user!.Id }, user);
             }
             catch (InvalidOperationException ex)
             {
@@ -95,7 +98,24 @@ namespace TechTrendEmporium.Api.Controllers
                 return StatusCode(500, "Internal server error");
             }
         }
+        [HttpPut("{username}")]
+        [Authorize(Roles = "SuperAdmin")]
+        public async Task<IActionResult> UpdateUser(string username, [FromBody] UpdateUserRequest request)
+        {
+            var (user, error) = await _userService.UpdateUserAsync(username, request);
+            if (error != null) return NotFound(new { message = error });
 
+            return Ok(user);
+        }
+        [HttpDelete]
+        [Authorize(Roles = "SuperAdmin")]
+        public async Task<IActionResult> DeleteUsers([FromBody] DeleteUsersRequest request)
+        {
+            var (success, error) = await _userService.DeleteUsersAsync(request);
+            if (!success) return BadRequest(new { message = error });
+
+            return NoContent(); // 204 No Content es una respuesta est�ndar para un DELETE exitoso.
+        }
         // FakeStore Operations
 
         [HttpGet("fakestore")]

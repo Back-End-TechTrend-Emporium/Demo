@@ -1,6 +1,7 @@
 using Logica.Interfaces;
 using Logica.Models.Category;
 using Logica.Models.Products;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace TechTrendEmporium.Api.Controllers
@@ -138,6 +139,7 @@ namespace TechTrendEmporium.Api.Controllers
         /// Get all categories (administrative view)
         /// </summary>
         [HttpGet("all")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<IEnumerable<CategoryDto>>> GetAllCategories()
         {
             try
@@ -157,6 +159,7 @@ namespace TechTrendEmporium.Api.Controllers
         /// Create new category (SuperAdmin/Employee only)
         /// </summary>
         [HttpPost]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<CategoryCreateResponseDto>> CreateCategory(CategoryCreateDto categoryDto)
         {
             try
@@ -196,6 +199,7 @@ namespace TechTrendEmporium.Api.Controllers
         /// Update existing category (SuperAdmin/Employee only)
         /// </summary>
         [HttpPut]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<CategoryResponseDto>> UpdateCategory(CategoryUpdateDto categoryDto)
         {
             try
@@ -231,6 +235,7 @@ namespace TechTrendEmporium.Api.Controllers
         /// Delete category (SuperAdmin only) or mark for deletion (Employee)
         /// </summary>
         [HttpDelete]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<CategoryResponseDto>> DeleteCategory(CategoryDeleteDto deleteDto)
         {
             try
@@ -265,6 +270,11 @@ namespace TechTrendEmporium.Api.Controllers
 
                 return Forbid("Insufficient permissions to delete categories");
             }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "Invalid operation for this category {CategoryId}", deleteDto.Id);
+                return NotFound(ex.Message); // Returns 404 Not Found with the exception message
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error deleting category {CategoryId}", deleteDto.Id);
@@ -272,14 +282,13 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        #endregion
-
         #region Approval Workflow Operations
 
         /// <summary>
         /// Get categories pending approval (SuperAdmin/Employee only)
         /// </summary>
         [HttpGet("pending-approval")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<IEnumerable<CategoryDto>>> GetPendingApproval()
         {
             try
@@ -303,6 +312,7 @@ namespace TechTrendEmporium.Api.Controllers
         /// Approve category (SuperAdmin/Employee only)
         /// </summary>
         [HttpPost("{id:guid}/approve")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult> ApproveCategory(Guid id)
         {
             try
@@ -333,6 +343,7 @@ namespace TechTrendEmporium.Api.Controllers
         /// Reject category (SuperAdmin/Employee only)
         /// </summary>
         [HttpPost("{id:guid}/reject")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult> RejectCategory(Guid id)
         {
             try
@@ -450,4 +461,5 @@ namespace TechTrendEmporium.Api.Controllers
 
         #endregion
     }
+    #endregion
 }
