@@ -258,65 +258,10 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting products from category {Category} in FakeStore", category);
-                return StatusCode(500, "Internal server error");
+                _logger.LogError(ex, "Error getting products by category from FakeStore");
+                return StatusCode(500, "Error getting products by category from FakeStore");
             }
         }
-
-        // Sync Operations
-
-
-        [HttpPost("sync-from-fakestore")]
-        public async Task<ActionResult<object>> SyncAllFromFakeStore()
-        {
-            try
-            {
-                var currentUserId = GetCurrentUserId();
-                // Use system user if no authenticated user
-                var createdBy = currentUserId == Guid.Empty ? new Guid("00000000-0000-0000-0000-000000000001") : currentUserId;
-                
-                var importedCount = await _productService.SyncAllFromFakeStoreAsync(createdBy);
-
-                return Ok(new
-                {
-                    Message = "Synchronization completed successfully",
-                    ImportedCount = importedCount,
-                    Timestamp = DateTime.UtcNow
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error syncing from FakeStore");
-                return StatusCode(500, "Error during synchronization");
-            }
-        }
-
-
-        [HttpPost("import-from-fakestore/{fakeStoreId:int}")]
-        public async Task<ActionResult<ProductDto>> ImportProductFromFakeStore(int fakeStoreId)
-        {
-            try
-            {
-                var currentUserId = GetCurrentUserId();
-                // Use system user if no authenticated user
-                var createdBy = currentUserId == Guid.Empty ? new Guid("00000000-0000-0000-0000-000000000001") : currentUserId;
-                
-                var product = await _productService.ImportProductFromFakeStoreAsync(fakeStoreId, createdBy);
-
-                if (product == null)
-                {
-                    return NotFound($"Product with ID {fakeStoreId} not found in FakeStore");
-                }
-
-                return Ok(product);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error importing product {ProductId} from FakeStore", fakeStoreId);
-                return StatusCode(500, "Error during import");
-            }
-        }
-
 
 
         // Approval Operations

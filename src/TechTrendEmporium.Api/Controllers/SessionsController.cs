@@ -74,6 +74,7 @@ namespace TechTrendEmporium.Api.Controllers
                 }
 
                 // Aquí necesitarías implementar un método en el servicio para obtener historial
+
                 // Por ahora retornamos un placeholder
                 return Ok(new
                 {
@@ -83,7 +84,7 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error obteniendo el historial de sesiones del usuario");
+                _logger.LogError(ex, "Error obteniendo el historial de sesiones del usuario");  
                 return StatusCode(500, new { message = "Error interno del servidor" });
             }
         }
