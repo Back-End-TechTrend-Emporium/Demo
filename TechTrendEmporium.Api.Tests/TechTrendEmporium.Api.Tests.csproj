@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Data\Data.csproj" />
     <ProjectReference Include="..\Logica\Logica.csproj" />
+    <ProjectReference Include="..\src\TechTrendEmporium.Api\TechTrendEmporium.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>
