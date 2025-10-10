@@ -144,6 +144,22 @@ namespace Logica.Services
             return products.Select(p => p.ToProductDto());
         }
 
+        public async Task<IEnumerable<ProductDto>> GetProductsByCategoryIdAsync(Guid categoryId)
+        {
+            try
+            {
+                var products = await _productRepository.GetByCategoryIdAsync(categoryId);
+                // Only return approved products for public consumption
+                var approvedProducts = products.Where(p => p.State == ApprovalState.Approved);
+                return approvedProducts.Select(p => p.ToProductDto());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting products for category {CategoryId}", categoryId);
+                throw;
+            }
+        }
+
         #endregion
 
         #region FakeStore API Operations

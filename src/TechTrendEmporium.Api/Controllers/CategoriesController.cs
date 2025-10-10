@@ -43,7 +43,8 @@ namespace TechTrendEmporium.Api.Controllers
                 var simplifiedCategories = categories.Select(c => new CategorySimpleDto
                 {
                     Id = c.Id,
-                    Name = c.Name
+                    Name = c.Name,
+                    Slug = c.Slug
                 });
 
                 return Ok(simplifiedCategories);
@@ -103,7 +104,7 @@ namespace TechTrendEmporium.Api.Controllers
         }
 
         /// <summary>
-        /// Get products filtered by category from FakeStore
+        /// Get products filtered by category slug from local database
         /// </summary>
         [HttpGet("store/products")]
         public async Task<ActionResult<CategoryFilterResponseDto>> GetProductsByCategory([FromQuery] string category)
@@ -115,7 +116,29 @@ namespace TechTrendEmporium.Api.Controllers
                     return BadRequest("Category parameter is required");
                 }
 
-                var products = await _productService.GetProductsByCategoryFromFakeStoreAsync(category);
+                // First try to find the category by slug or name
+                var categoryEntity = await _categoryService.GetCategoryBySlugAsync(category);
+                if (categoryEntity == null)
+                {
+                    // If not found by slug, try by name (for backward compatibility)
+                    var allCategories = await _categoryService.GetApprovedCategoriesAsync();
+                    categoryEntity = allCategories.FirstOrDefault(c => 
+                        c.Name.Equals(category, StringComparison.OrdinalIgnoreCase));
+                }
+
+                IEnumerable<ProductDto> products;
+                
+                if (categoryEntity != null)
+                {
+                    // Get products from local database by category ID
+                    products = await _productService.GetProductsByCategoryIdAsync(categoryEntity.Id);
+                }
+                else
+                {
+                    // Fallback: Try to get from FakeStore if category not found locally
+                    _logger.LogWarning("Category '{Category}' not found locally, trying FakeStore", category);
+                    products = await _productService.GetProductsByCategoryFromFakeStoreAsync(category);
+                }
                 
                 var response = new CategoryFilterResponseDto
                 {
