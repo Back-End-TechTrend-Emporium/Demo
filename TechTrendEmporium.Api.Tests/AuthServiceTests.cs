@@ -1,14 +1,15 @@
-﻿using System;
-using System.Security.Claims;
-using System.Threading.Tasks;
-using Data.Entities;
+﻿using Data.Entities;
 using Data.Entities.Enums;
 using Logica.Interfaces;
 using Logica.Models;
 using Logica.Services;
+using Microsoft.Extensions.Logging;
 using Moq;
-using Xunit;
+using System;
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Threading.Tasks;
+using Xunit;
 
 namespace TechTrendEmporium.Api.Tests.Services;
 
@@ -17,6 +18,7 @@ public class AuthServiceTests
     // Mocks for the service dependencies
     private readonly Mock<IUserRepository> _mockUserRepository;
     private readonly Mock<ITokenService> _mockTokenService;
+    private readonly Mock<ILogger<AuthService>> _mockLogger;
 
     // The service instance to be tested
     private readonly AuthService _authService;
@@ -26,7 +28,11 @@ public class AuthServiceTests
         // Initialize mocks and the service for each test
         _mockUserRepository = new Mock<IUserRepository>();
         _mockTokenService = new Mock<ITokenService>();
-        _authService = new AuthService(_mockUserRepository.Object, _mockTokenService.Object);
+        _mockLogger = new Mock<ILogger<AuthService>>();
+        _authService = new AuthService(
+        _mockUserRepository.Object,
+        _mockTokenService.Object,
+        _mockLogger.Object);
     }
 
     [Fact]
