@@ -1,5 +1,6 @@
 using Logica.Interfaces;
-using Logica.Models;
+using Logica.Models.Auth;
+using Logica.Models.Login;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
