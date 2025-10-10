@@ -1,6 +1,6 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
-namespace Logica.Models.Reviews
+namespace Logica.Models.Review.Requests
 {
     public class ReviewCreateDto
     {
