@@ -239,7 +239,7 @@ namespace TechTrendEmporium.Api.Controllers
         // === OPERACIONES ADMINISTRATIVAS (SOLO ADMINS) ===
 
         [HttpGet("admin/all")]
-        [Authorize(Roles = "Admin")] // Solo administradores
+        [Authorize(Roles = "SuperAdmin")] // Solo administradores
         public async Task<ActionResult<IEnumerable<CartFullDetailsDto>>> GetAllCartsForAdmin()
         {
             try
@@ -256,7 +256,7 @@ namespace TechTrendEmporium.Api.Controllers
         }
 
         [HttpGet("admin/dashboard")]
-        [Authorize(Roles = "Admin")] // Solo administradores
+        [Authorize(Roles = "SuperAdmin")] // Solo administradores
         public async Task<ActionResult<CartsDashboardSummaryDto>> GetAdminDashboard()
         {
             try
@@ -273,7 +273,7 @@ namespace TechTrendEmporium.Api.Controllers
         }
 
         [HttpGet("admin/user/{userId:guid}")]
-        [Authorize(Roles = "Admin")] // Solo administradores
+        [Authorize(Roles = "SuperAdmin")] // Solo administradores
         public async Task<ActionResult<IEnumerable<CartFullDetailsDto>>> GetUserCartsForAdmin(Guid userId)
         {
             try
@@ -289,10 +289,9 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-        // === OPERACIONES FAKESTORE (SOLO ADMIN) ===
 
         [HttpGet("admin/fakestore")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<IEnumerable<CartDto>>> GetCartsFromFakeStore()
         {
             try
@@ -308,7 +307,7 @@ namespace TechTrendEmporium.Api.Controllers
         }
 
         [HttpPost("admin/sync-from-fakestore")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<object>> SyncFromFakeStore()
         {
             try
@@ -425,7 +424,7 @@ namespace TechTrendEmporium.Api.Controllers
         }
 
         [HttpPost("admin/restore-inventory/{cartId:guid}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult> RestoreInventoryForCart(Guid cartId)
         {
             try

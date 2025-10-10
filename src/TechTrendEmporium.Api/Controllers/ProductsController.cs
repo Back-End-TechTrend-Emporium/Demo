@@ -23,6 +23,7 @@ namespace TechTrendEmporium.Api.Controllers
 
 
         [HttpGet("products")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<IEnumerable<ProductSummaryDto>>> GetMyProducts()
         {
             try

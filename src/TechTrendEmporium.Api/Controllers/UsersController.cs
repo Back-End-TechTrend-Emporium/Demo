@@ -52,12 +52,13 @@ namespace TechTrendEmporium.Api.Controllers
                 {
                     return NotFound($"User with ID {id} not found");
                 }
-
+                Enum.TryParse<Role>(user.Role, true, out var roleEnum);
                 var response = new GetUserResponse
                 {
                     Id = user.Id,
                     Email = user.Email,
-                    Username = user.Username
+                    Username = user.Username,
+                    Role = roleEnum
                 };
 
                 return Ok(response);
@@ -79,11 +80,13 @@ namespace TechTrendEmporium.Api.Controllers
                 {
                     return BadRequest(new { message = error });
                 }
+                Enum.TryParse<Role>(user.Role, true, out var roleEnum);
                 var response = new GetUserResponse
                 {
                     Id = user.Id,
                     Email = user.Email,
-                    Username = user.Username
+                    Username = user.Username,
+                    Role = roleEnum
                 };
 
                 return CreatedAtAction(nameof(GetUser), new { id = user!.Id }, user);

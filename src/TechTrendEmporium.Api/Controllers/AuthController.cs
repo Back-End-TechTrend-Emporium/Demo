@@ -52,7 +52,7 @@ namespace TechTrendEmporium.Api.Controllers
 
         // F01: Sign Up Admin (crea un empleado)
         [HttpPost("admin/auth")]
-        [Authorize(Roles = "Admin, SuperAdmin")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<IActionResult> RegisterByAdmin(AdminRegisterRequest request)
         {
             var (response, error) = await _authService.RegisterByAdminAsync(request);

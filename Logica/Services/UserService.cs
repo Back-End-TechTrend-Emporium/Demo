@@ -34,6 +34,7 @@ namespace Logica.Services
                 Id = u.Id,
                 Email = u.Email,
                 Username = u.Username,
+                Role = u.Role,
             }).ToList();
             return model;
         }
