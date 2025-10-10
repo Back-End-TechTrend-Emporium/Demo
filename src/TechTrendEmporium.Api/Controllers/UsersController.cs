@@ -117,7 +117,7 @@ namespace TechTrendEmporium.Api.Controllers
             var (success, error) = await _userService.DeleteUsersAsync(request);
             if (!success) return BadRequest(new { message = error });
 
-            return NoContent(); // 204 No Content es una respuesta est�ndar para un DELETE exitoso.
+            return NoContent(); // 204 is a succesful answer for a delete.
         }
         // FakeStore Operations
 

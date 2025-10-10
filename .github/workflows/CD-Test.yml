@@ -1,0 +1,165 @@
+name: test-deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - development
+      dry_run:
+        description: 'Dry run (no real deployment)'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  # Usar nombres diferentes para staging
+  AZURE_WEBAPP_NAME: ${{ github.event.inputs.environment == 'staging' && 'techtrend-emporium-api-staging' || 'techtrend-emporium-api-dev' }}
+  AZURE_RESOURCE_GROUP: ${{ github.event.inputs.environment == 'staging' && 'rg-techtrend-emporium-staging' || 'rg-techtrend-emporium-dev' }}
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  test-build-and-deploy:
+    name: Test Build & Deploy Process
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build application
+        run: dotnet build -c Release --no-restore
+
+      - name: Run tests
+        run: dotnet test -c Release --no-build --verbosity normal
+
+      - name: Publish application
+        run: |
+          dotnet publish -c Release -o ./publish \
+            --no-build --verbosity normal
+
+      - name: Show what would be deployed
+        run: |
+          echo "📦 Deployment Package Contents:"
+          ls -la ./publish/
+          echo ""
+          echo "🔍 Key files:"
+          find ./publish -name "*.dll" -o -name "*.json" -o -name "*.exe" | head -10
+
+      # Solo ejecutar deployment real si no es dry run
+      - name: Azure CLI Login
+        if: github.event.inputs.dry_run == 'false'
+        uses: azure/login@v1
+        with:
+          creds: |
+            {
+              "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}",
+              "tenantId": "${{ secrets.AZURE_TENANT_ID }}"
+            }
+
+      - name: Dry Run - Show deployment plan
+        if: github.event.inputs.dry_run == 'true'
+        run: |
+          echo "🧪 DRY RUN MODE - No real deployment will occur"
+          echo ""
+          echo "📋 Deployment Plan:"
+          echo "- Environment: ${{ github.event.inputs.environment }}"
+          echo "- App Service: ${{ env.AZURE_WEBAPP_NAME }}"
+          echo "- Resource Group: ${{ env.AZURE_RESOURCE_GROUP }}"
+          echo "- Package Size: $(du -sh ./publish | cut -f1)"
+          echo ""
+          echo "✅ Build and package creation successful!"
+          echo "🔄 To execute real deployment, run again with dry_run=false"
+
+      - name: Real Deployment - Create infrastructure
+        if: github.event.inputs.dry_run == 'false'
+        run: |
+          echo "🚀 REAL DEPLOYMENT MODE"
+          
+          # Crear Resource Group
+          if ! az group show --name ${{ env.AZURE_RESOURCE_GROUP }} >/dev/null 2>&1; then
+            echo "📁 Creating Resource Group: ${{ env.AZURE_RESOURCE_GROUP }}"
+            az group create \
+              --name ${{ env.AZURE_RESOURCE_GROUP }} \
+              --location "East US" \
+              --tags Environment=${{ github.event.inputs.environment }} Project=TechTrendEmporium-Test
+          fi
+
+          # Crear App Service
+          if ! az webapp show --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name ${{ env.AZURE_WEBAPP_NAME }} >/dev/null 2>&1; then
+            if ! az appservice plan show --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name "asp-${{ env.AZURE_WEBAPP_NAME }}" >/dev/null 2>&1; then
+              az appservice plan create \
+                --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                --name "asp-${{ env.AZURE_WEBAPP_NAME }}" \
+                --sku B1 \
+                --is-linux \
+                --location "East US"
+            fi
+            
+            az webapp create \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --plan "asp-${{ env.AZURE_WEBAPP_NAME }}" \
+              --name ${{ env.AZURE_WEBAPP_NAME }} \
+              --runtime "DOTNETCORE:8.0"
+          fi
+
+      - name: Real Deployment - Deploy application
+        if: github.event.inputs.dry_run == 'false'
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          resource-group-name: ${{ env.AZURE_RESOURCE_GROUP }}
+          package: './publish'
+
+      - name: Real Deployment - Health check
+        if: github.event.inputs.dry_run == 'false'
+        run: |
+          echo "🔍 Testing deployment..."
+          sleep 30
+          
+          HEALTH_URL="https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/health"
+          
+          for i in {1..5}; do
+            if curl -f -s "$HEALTH_URL"; then
+              echo "✅ Health check passed!"
+              break
+            else
+              echo "⚠️ Attempt $i failed, retrying..."
+              sleep 10
+            fi
+          done
+
+      - name: Generate test summary
+        run: |
+          echo "### 🧪 Test Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Mode**: ${{ github.event.inputs.dry_run == 'true' && 'Dry Run' || 'Real Deployment' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **App Service**: ${{ env.AZURE_WEBAPP_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Resource Group**: ${{ env.AZURE_RESOURCE_GROUP }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event.inputs.dry_run }}" = "false" ]; then
+            echo "- **URL**: https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "- **Tested at**: $(date -u)" >> $GITHUB_STEP_SUMMARY
