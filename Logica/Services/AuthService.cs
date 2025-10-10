@@ -18,11 +18,14 @@ namespace Logica.Services
         private readonly IUserRepository _userRepository;
         private readonly ITokenService _tokenService;
         private readonly ILogger<AuthService> _logger;
+        private readonly ILogger<AuthService> _logger;
 
+        public AuthService(IUserRepository userRepository, ITokenService tokenService, ILogger<AuthService> logger)
         public AuthService(IUserRepository userRepository, ITokenService tokenService, ILogger<AuthService> logger)
         {
             _userRepository = userRepository;
             _tokenService = tokenService;
+            _logger = logger;
             _logger = logger;
         }
 
@@ -43,16 +46,19 @@ namespace Logica.Services
                     return (null, "Email or username already exists.");
                 }
 
-                var user = new User
-                {
+                    var user = new User
+                    {
                     Name = request.Username, // Using username as name if no name provided
+                        Name = request.Username, // Using username as name if no name provided
                     Email = request.Email,
-                    Username = request.Username,
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-                    Role = Role.Shopper,
+                        Username = request.Username,
+                        PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                        Role = Role.Shopper,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow
-                };
+                    };
 
                 var createdUser = await _userRepository.AddAsync(user);
                 _logger.LogInformation("New shopper registered: {Email} (ID: {UserId})", user.Email, user.Id);
