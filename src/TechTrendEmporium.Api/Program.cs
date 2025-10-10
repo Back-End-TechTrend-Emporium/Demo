@@ -252,7 +252,7 @@ if (builder.Configuration.GetValue<bool>("EnsureSystemUser", true))
                 Email = "system@techtrendemporium.com",
                 Username = "system",
                 PasswordHash = "SYSTEM_ACCOUNT_NOT_FOR_LOGIN",
-                Role = Data.Entities.Enums.Role.Admin,
+                Role = Data.Entities.Enums.Role.SuperAdmin,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };
