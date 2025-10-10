@@ -1,13 +1,14 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
 using Data;
 using External.FakeStore;
 using Logica.Interfaces;
 using Logica.Repositories;
 using Logica.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
@@ -272,7 +273,6 @@ if (builder.Configuration.GetValue<bool>("EnsureSystemUser", true))
     }
 }
 
-// === Swagger (configurable in Prod with Swagger:Enabled and Swagger:ServeAtRoot) ===
 var swaggerEnabled = builder.Configuration.GetValue<bool>("Swagger:Enabled",
                       app.Environment.IsDevelopment());
 
@@ -283,17 +283,33 @@ if (swaggerEnabled)
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "TechTrendEmporium.Api v1");
         if (builder.Configuration.GetValue<bool>("Swagger:ServeAtRoot", false))
-            c.RoutePrefix = string.Empty; // serve Swagger at "/"
+            c.RoutePrefix = string.Empty;
     });
 }
 
-app.UseHttpsRedirection();
+// *** NO usar app.UseForwardedHeaders(...) si vamos a setear el setting en Azure ***
+
+// Decide si forzar redirección a HTTPS
+// Sugerencia: en producción normalmente NO hace falta; Azure ya puede forzar HTTPS.
+// Si quieres forzar desde la app, excluimos /health para que el health-check sea 200.
+var forceHttpsRedirect = builder.Configuration.GetValue<bool>(
+    "Security:ForceHttpsRedirect",
+    app.Environment.IsDevelopment()
+);
+
+if (forceHttpsRedirect)
+{
+    app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/health"),
+        sub => sub.UseHttpsRedirection());
+}
 
 // === VERY IMPORTANT THE ORDER! ===
-app.UseAuthentication(); // 1. Identify who the user is (read the token).
-app.UseAuthorization();  // 2. Verify if that user has permissions.
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
-app.MapGet("/health", () => "Healthy");
+
+// Health endpoint rápido (debe devolver 200)
+app.MapGet("/health", () => Results.Ok("OK"));
 
 app.Run();
