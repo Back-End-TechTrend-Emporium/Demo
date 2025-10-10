@@ -86,7 +86,6 @@ builder.Services.AddHttpClient<IFakeStoreApiService, FakeStoreApiService>(client
     var timeoutSeconds = fakeStoreConfig.GetValue<int>("TimeoutSeconds", 30);
 
     client.BaseAddress = new Uri(baseUrl);
-    client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 });
 
 // === Dependency Injection ===
@@ -213,6 +212,7 @@ if (builder.Configuration.GetValue<bool>("EF:ApplyMigrationsOnStartup"))
             await context.Database.MigrateAsync();
             logger.LogInformation("Database migrations applied successfully");
         }
+        await DbSeeder.SeedUsersAsync(context, logger);
     }
     catch (Exception ex)
     {

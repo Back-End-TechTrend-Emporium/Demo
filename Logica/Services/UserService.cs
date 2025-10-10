@@ -38,33 +38,79 @@ namespace Logica.Services
             return model;
         }
 
-        public async Task<User> CreateUserAsync(string email, string username, string password, Role role, CancellationToken cancellationToken = default)
+        public async Task<UserResponse?> GetUserByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
-            
-            if (await _userRepository.EmailExistsAsync(email, cancellationToken))
-                throw new InvalidOperationException("Email already exists");
+            var user = await _userRepository.GetByIdAsync(id, cancellationToken);
+            if (user == null)
+            {
+                return null;
+            }
+            // Map to UserResponse
+            return new UserResponse(user.Id, user.Name, user.Email, user.Username, user.Role.ToString());
+        }
 
-            if (await _userRepository.UsernameExistsAsync(username, cancellationToken))
-                throw new InvalidOperationException("Username already exists");
+        public async Task<(UserResponse? User, string? Error)> CreateUserAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
+        {
+            if (await _userRepository.EmailExistsAsync(request.Email, cancellationToken) || await _userRepository.UsernameExistsAsync(request.Username, cancellationToken))
+            {
+                return (null, "This email or user already exist.");
+            }
+
+            if (!Enum.IsDefined(typeof(Role), request.Role))
+            {
+                return (null, "The specified role is not valid.");
+            }
 
             var user = new User
             {
-                Email = email.ToLower(),
-                Username = username.ToLower(),
-                PasswordHash = password, 
-                Role = role,
+                Name = request.Name,
+                Username = request.Username,
+                Email = request.Email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                Role = request.Role,
                 IsActive = true
             };
 
-            return await _userRepository.AddAsync(user, cancellationToken);
+            var addedUser = await _userRepository.AddAsync(user, cancellationToken);
+            var response = new UserResponse(addedUser.Id, addedUser.Name, addedUser.Email, addedUser.Username, addedUser.Role.ToString());
+            return (response, null);
         }
 
-        public async Task<User?> GetUserByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        public async Task<(UserResponse? User, string? Error)> UpdateUserAsync(string username, UpdateUserRequest request, CancellationToken cancellationToken = default)
         {
-            return await _userRepository.GetByIdAsync(id, cancellationToken);
+            var user = await _userRepository.GetByUsernameAsync(username, cancellationToken);
+            if (user == null)
+            {
+                return (null, "Usuario no encontrado.");
+            }
+
+            // Actualizamos solo los campos que vienen en la petición
+            if (!string.IsNullOrEmpty(request.Name)) user.Name = request.Name;
+            if (!string.IsNullOrEmpty(request.Email)) user.Email = request.Email;
+            if (!string.IsNullOrEmpty(request.Password)) user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+            if (!string.IsNullOrEmpty(request.Role) && Enum.TryParse<Role>(request.Role, true, out var role))
+            {
+                user.Role = role;
+            }
+
+            await _userRepository.UpdateUserAsync(user, cancellationToken);
+            var response = new UserResponse(user.Id, user.Name, user.Email, user.Username, user.Role.ToString());
+            return (response, null);
         }
 
-        
+        public async Task<(bool Success, string? Error)> DeleteUsersAsync(DeleteUsersRequest request, CancellationToken cancellationToken = default)
+        {
+            var usersToDelete = await _userRepository.GetUsersByUsernamesAsync(request.Usernames, cancellationToken);
+            if (usersToDelete.Count == 0)
+            {
+                return (false, "Ninguno de los usuarios especificados fue encontrado.");
+            }
+
+            await _userRepository.DeleteUsersAsync(usersToDelete, cancellationToken);
+            return (true, null);
+        }
+
+        // FakeStore user operations
         public async Task<IEnumerable<GetUserResponse>> GetUsersFromFakeStoreAsync()
         {
             var fakeStoreUsers = await _fakeStoreApiService.GetUsersAsync();

@@ -1,6 +1,8 @@
 using Logica.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Logica.Models.Products;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace TechTrendEmporium.Api.Controllers
 {
@@ -38,6 +40,7 @@ namespace TechTrendEmporium.Api.Controllers
 
 
         [HttpGet("Allproducts")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<IEnumerable<ProductSummaryDto>>> GetAllProducts()
         {
             try
@@ -98,6 +101,7 @@ namespace TechTrendEmporium.Api.Controllers
 
 
         [HttpPost]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<ProductCreateResponseDto>> CreateProduct(ProductCreateDto productDto)
         {
             try
@@ -130,6 +134,7 @@ namespace TechTrendEmporium.Api.Controllers
 
 
         [HttpPut("{id:guid}")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<ProductResponseDto>> UpdateProduct(Guid id, ProductUpdateDto productDto)
         {
             try
@@ -157,6 +162,7 @@ namespace TechTrendEmporium.Api.Controllers
 
 
         [HttpDelete("{id:guid}")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<ProductResponseDto>> DeleteProduct(Guid id)
         {
             try
@@ -173,6 +179,11 @@ namespace TechTrendEmporium.Api.Controllers
                     Message = "Deleted successfully"
                 };
                 return Ok(response);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "Operación inválida al eliminar producto {ProductId}", id);
+                return NotFound(ex.Message); // Returns 404 if the product is already deleted
             }
             catch (Exception ex)
             {
