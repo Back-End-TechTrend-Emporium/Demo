@@ -310,6 +310,7 @@ app.UseAuthorization();
 app.MapControllers();
 
 // Health endpoint rápido (debe devolver 200)
+app.MapGet("/", () => Results.Ok("OK"));
 app.MapGet("/health", () => Results.Ok("OK"));
 
 app.Run();
