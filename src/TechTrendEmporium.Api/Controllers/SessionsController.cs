@@ -21,7 +21,7 @@ namespace TechTrendEmporium.Api.Controllers
         }
 
         /// <summary>
-        /// Obtener información de la sesión actual del usuario autenticado
+        /// Obtener informaciÃ³n de la sesiÃ³n actual del usuario autenticado
         /// </summary>
         [HttpGet("current")]
         [Authorize]
@@ -32,13 +32,13 @@ namespace TechTrendEmporium.Api.Controllers
                 var jtiClaim = User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti);
                 if (jtiClaim == null)
                 {
-                    return BadRequest(new { message = "Token inválido - no se encontró identificador de sesión" });
+                    return BadRequest(new { message = "Token invÃ¡lido - no se encontrÃ³ identificador de sesiÃ³n" });
                 }
 
                 var session = await _authService.GetActiveSessionAsync(jtiClaim.Value);
                 if (session == null)
                 {
-                    return NotFound(new { message = "No se encontró una sesión activa" });
+                    return NotFound(new { message = "No se encontrÃ³ una sesiÃ³n activa" });
                 }
 
                 return Ok(new {
@@ -48,12 +48,12 @@ namespace TechTrendEmporium.Api.Controllers
                     createdAt = session.CreatedAt,
                     ipAddress = session.Ip,
                     userAgent = session.UserAgent,
-                    message = "Sesión activa encontrada"
+                    message = "SesiÃ³n activa encontrada"
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error obteniendo la sesión actual");
+                _logger.LogError(ex, "Error obteniendo la sesiÃ³n actual");
                 return StatusCode(500, new { message = "Error interno del servidor" });
             }
         }
@@ -73,12 +73,12 @@ namespace TechTrendEmporium.Api.Controllers
                     return BadRequest(new { message = "Usuario no identificado" });
                 }
 
-                // Aquí necesitarías implementar un método en el servicio para obtener historial
+                // AquÃ­ necesitarÃ­as implementar un mÃ©todo en el servicio para obtener historial
                 // Por ahora retornamos un placeholder
                 return Ok(new
                 {
                     userId = userId,
-                    message = "Historial de sesiones - implementar según necesidades específicas"
+                    message = "Historial de sesiones - implementar segÃºn necesidades especÃ­ficas"
                 });
             }
             catch (Exception ex)
