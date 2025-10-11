@@ -37,7 +37,7 @@ namespace Back_End_TechTrend_Emporium.Controllers
         {
             try
             {
-                // Usando el servicio con validaciones automáticas
+                // Usando el servicio con validaciones automï¿½ticas
                 var (user, error) = await _userService.CreateUserAsync(request);
 
                 if (user == null)

@@ -68,14 +68,14 @@ namespace Logica.Services
                     createdBy = systemUserId;
                 }
 
-                // Buscar o crear categoría
+                // Buscar o crear categorï¿½a
                 var category = await GetOrCreateCategoryAsync(productDto.Category, createdBy);
 
                 // Crear producto
                 var product = productDto.ToProduct();
                 product.CategoryId = category.Id;
                 product.CreatedBy = createdBy;
-                product.State = ApprovalState.PendingApproval; // Productos manuales necesitan aprobación
+                product.State = ApprovalState.PendingApproval; // Productos manuales necesitan aprobaciï¿½n
 
                 var createdProduct = await _productRepository.CreateAsync(product);
                 
@@ -98,7 +98,7 @@ namespace Logica.Services
                 var product = await _productRepository.GetByIdAsync(id);
                 if (product == null) return null;
 
-                // Si se cambia la categoría, buscar o crear la nueva
+                // Si se cambia la categorï¿½a, buscar o crear la nueva
                 if (!string.IsNullOrEmpty(productDto.Category))
                 {
                     var category = await GetOrCreateCategoryAsync(productDto.Category, product.CreatedBy);
@@ -200,7 +200,7 @@ namespace Logica.Services
         {
             try
             {
-                _logger.LogInformation("Iniciando sincronización completa desde FakeStore");
+                _logger.LogInformation("Iniciando sincronizaciï¿½n completa desde FakeStore");
 
                 var fakeStoreProducts = await _fakeStoreClient.GetProductsAsync();
                 var importedCount = 0;
@@ -248,13 +248,13 @@ namespace Logica.Services
                     }
                 }
 
-                _logger.LogInformation("Sincronización completada: {ImportedCount} productos importados, {SkippedCount} omitidos", 
+                _logger.LogInformation("Sincronizaciï¿½n completada: {ImportedCount} productos importados, {SkippedCount} omitidos", 
                     importedCount, skippedCount);
                 return importedCount;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error en sincronización completa");
+                _logger.LogError(ex, "Error en sincronizaciï¿½n completa");
                 throw;
             }
         }
@@ -300,7 +300,7 @@ namespace Logica.Services
                     return null;
                 }
 
-                // Buscar o crear categoría
+                // Buscar o crear categorï¿½a
                 var category = await GetOrCreateCategoryAsync(fakeStoreProduct.Category, createdBy);
 
                 // Crear producto
@@ -457,12 +457,12 @@ namespace Logica.Services
         {
             return name.ToLower()
                       .Replace(" ", "-")
-                      .Replace("ñ", "n")
-                      .Replace("á", "a")
-                      .Replace("é", "e")
-                      .Replace("í", "i")
-                      .Replace("ó", "o")
-                      .Replace("ú", "u")
+                      .Replace("ï¿½", "n")
+                      .Replace("ï¿½", "a")
+                      .Replace("ï¿½", "e")
+                      .Replace("ï¿½", "i")
+                      .Replace("ï¿½", "o")
+                      .Replace("ï¿½", "u")
                       .Trim();
         }
 

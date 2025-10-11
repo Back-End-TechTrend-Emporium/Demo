@@ -441,7 +441,7 @@ namespace Logica.Services
             }
         }
 
-        // === OPERACIONES CENTRADAS EN USUARIO (LÓGICA REAL) ===
+       
 
         public async Task<IEnumerable<CartDto>> GetCartsByUserIdAsync(Guid userId)
         {

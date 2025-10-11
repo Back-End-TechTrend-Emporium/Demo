@@ -1,4 +1,4 @@
-﻿namespace Logica.Models.Review.Responses
+namespace Logica.Models.Review.Responses
 {
     public class ReviewsResponseDto
     {
