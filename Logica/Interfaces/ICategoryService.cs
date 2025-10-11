@@ -13,6 +13,7 @@ namespace Logica.Interfaces
         Task<CategoryDto> CreateCategoryAsync(CategoryCreateDto categoryDto, Guid createdBy);
         Task<CategoryDto?> UpdateCategoryAsync(Guid id, CategoryUpdateDto categoryDto);
         Task<bool> DeleteCategoryAsync(Guid id);
+        Task<bool> DeactivateCategoryAsync(Guid id);
         
         // Search Operations
         Task<IEnumerable<CategoryDto>> SearchCategoriesAsync(string searchTerm);

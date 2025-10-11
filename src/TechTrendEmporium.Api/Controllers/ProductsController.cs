@@ -40,29 +40,6 @@ namespace TechTrendEmporium.Api.Controllers
         }
 
 
-        [HttpGet("Allproducts")]
-        [Authorize(Roles = "Employee, SuperAdmin")]
-        public async Task<ActionResult<IEnumerable<ProductSummaryDto>>> GetAllProducts()
-        {
-            try
-            {
-                var products = await _productService.GetAllProductsAsync();
-                var summaryProducts = products.Select(p => new ProductSummaryDto
-                {
-                    Id = p.Id,
-                    Title = p.Title,
-                    Price = p.Price,
-                    Category = p.Category
-                });
-                return Ok(summaryProducts);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting all products");
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
         [HttpGet("approved")]
         public async Task<ActionResult<IEnumerable<ProductDto>>> GetApprovedProducts()
         {
@@ -204,7 +181,9 @@ namespace TechTrendEmporium.Api.Controllers
                     return BadRequest("Search term is required");
                 }
 
+                // The service already filters for approved products only
                 var products = await _productService.SearchProductsAsync(searchTerm);
+                
                 return Ok(products);
             }
             catch (Exception ex)
@@ -398,87 +377,6 @@ namespace TechTrendEmporium.Api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting stock for product {ProductId}", id);
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
-        [HttpGet("stock/summary")]
-        public async Task<ActionResult<object>> GetStockSummary()
-        {
-            try
-            {
-                var products = await _productService.GetAllProductsAsync();
-                var productsList = products.ToList();
-
-                var summary = new
-                {
-                    totalProducts = productsList.Count,
-                    inStockProducts = productsList.Count(p => p.IsInStock),
-                    outOfStockProducts = productsList.Count(p => p.IsOutOfStock),
-                    lowStockProducts = productsList.Count(p => p.IsLowStock),
-                    totalInventoryValue = (int)productsList.Sum(p => p.Price * p.InventoryAvailable)
-                };
-
-                return Ok(summary);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting stock summary");
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
-        [HttpGet("stock/low")]
-        public async Task<ActionResult<IEnumerable<object>>> GetLowStockProducts()
-        {
-            try
-            {
-                var products = await _productService.GetAllProductsAsync();
-                var lowStockProducts = products
-                    .Where(p => p.IsLowStock)
-                    .Select(p => new
-                    {
-                        productId = p.Id,
-                        title = p.Title,
-                        image = p.Image,
-                        availableStock = p.InventoryAvailable,
-                        totalStock = p.InventoryTotal,
-                        isOutOfStock = p.IsOutOfStock
-                    })
-                    .ToList();
-
-                return Ok(lowStockProducts);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting low stock products");
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
-        [HttpGet("stock/out")]
-        public async Task<ActionResult<IEnumerable<object>>> GetOutOfStockProducts()
-        {
-            try
-            {
-                var products = await _productService.GetAllProductsAsync();
-                var outOfStockProducts = products
-                    .Where(p => p.IsOutOfStock)
-                    .Select(p => new
-                    {
-                        productId = p.Id,
-                        title = p.Title,
-                        image = p.Image,
-                        availableStock = p.InventoryAvailable,
-                        totalStock = p.InventoryTotal
-                    })
-                    .ToList();
-
-                return Ok(outOfStockProducts);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting out of stock products");
                 return StatusCode(500, "Internal server error");
             }
         }

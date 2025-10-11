@@ -351,10 +351,15 @@ namespace TechTrendEmporium.Api.Controllers
 
                 if (!success)
                 {
-                    return NotFound($"Category with ID {id} not found");
+                    return NotFound($"Category with ID {id} not found or cannot be approved");
                 }
 
                 return Ok(new { Message = "Category approved successfully" });
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "Invalid operation when approving category {CategoryId}", id);
+                return BadRequest(new { Message = ex.Message });
             }
             catch (Exception ex)
             {
@@ -389,6 +394,41 @@ namespace TechTrendEmporium.Api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error rejecting category {CategoryId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Deactivate category (SuperAdmin/Employee only)
+        /// </summary>
+        [HttpPost("{id:guid}/deactivate")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult> DeactivateCategory(Guid id)
+        {
+            try
+            {
+                if (!HasAdministrativePermissions())
+                {
+                    return Forbid("Only SuperAdmin and Employee can deactivate categories");
+                }
+
+                var success = await _categoryService.DeactivateCategoryAsync(id);
+
+                if (!success)
+                {
+                    return NotFound($"Category with ID {id} not found");
+                }
+
+                return Ok(new { Message = "Category deactivated successfully" });
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "Invalid operation when deactivating category {CategoryId}", id);
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deactivating category {CategoryId}", id);
                 return StatusCode(500, "Internal server error");
             }
         }

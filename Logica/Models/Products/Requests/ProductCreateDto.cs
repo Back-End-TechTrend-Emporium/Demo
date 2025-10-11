@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Logica.Models.Products
 {
-    public class ProductCreateDto
+    public class ProductCreateDto : IValidatableObject
     {
         [Required(ErrorMessage = "Title is required")]
         [StringLength(200, ErrorMessage = "Title cannot exceed 200 characters")]
@@ -30,5 +30,15 @@ namespace Logica.Models.Products
 
         [Range(0, int.MaxValue, ErrorMessage = "Available inventory must be 0 or greater")]
         public int InventoryAvailable { get; set; } = 0;
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (InventoryAvailable > InventoryTotal)
+            {
+                yield return new ValidationResult(
+                    "Available inventory cannot be greater than total inventory.",
+                    new[] { nameof(InventoryAvailable) });
+            }
+        }
     }
 }

@@ -29,6 +29,9 @@ namespace Logica.Mappers
 
         public static Product ToProduct(this ProductCreateDto createDto)
         {
+            // Ensure inventory constraint: Available <= Total
+            var availableInventory = Math.Min(createDto.InventoryAvailable, createDto.InventoryTotal);
+            
             return new Product
             {
                 Title = createDto.Title,
@@ -36,7 +39,7 @@ namespace Logica.Mappers
                 Description = createDto.Description ?? string.Empty,
                 ImageUrl = createDto.ImageUrl,
                 InventoryTotal = createDto.InventoryTotal,
-                InventoryAvailable = createDto.InventoryAvailable,
+                InventoryAvailable = availableInventory, // Ensure constraint compliance
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -61,7 +64,10 @@ namespace Logica.Mappers
                 product.InventoryTotal = updateDto.InventoryTotal.Value;
 
             if (updateDto.InventoryAvailable.HasValue)
-                product.InventoryAvailable = updateDto.InventoryAvailable.Value;
+            {
+                // Ensure inventory constraint: Available <= Total
+                product.InventoryAvailable = Math.Min(updateDto.InventoryAvailable.Value, product.InventoryTotal);
+            }
             
             product.UpdatedAt = DateTime.UtcNow;
         }

@@ -141,7 +141,9 @@ namespace Logica.Services
         public async Task<IEnumerable<ProductDto>> SearchProductsAsync(string searchTerm)
         {
             var products = await _productRepository.SearchAsync(searchTerm);
-            return products.Select(p => p.ToProductDto());
+            // Only return approved products for public consumption
+            var approvedProducts = products.Where(p => p.State == ApprovalState.Approved);
+            return approvedProducts.Select(p => p.ToProductDto());
         }
 
         public async Task<IEnumerable<ProductDto>> GetProductsByCategoryIdAsync(Guid categoryId)
@@ -399,17 +401,16 @@ namespace Logica.Services
             {
                 Name = categoryName,
                 Slug = GenerateSlug(categoryName),
-                State = ApprovalState.Approved, // Auto-approve categories from FakeStore
+                State = ApprovalState.PendingApproval, // Categories should always start as PendingApproval
                 CreatedBy = createdBy,
-                ApprovedBy = createdBy, // Auto-approve with same user
                 CreatedAt = DateTime.UtcNow,
-                ApprovedAt = DateTime.UtcNow // Auto-approve
+                UpdatedAt = DateTime.UtcNow
             };
 
             _context.Categories.Add(category);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Categoría creada: {CategoryName}", categoryName);
+            _logger.LogInformation("Category created with PendingApproval state: {CategoryName}", categoryName);
             return category;
         }
 
@@ -443,6 +444,5 @@ namespace Logica.Services
         }
 
         #endregion
-
     }
 }

@@ -3,6 +3,8 @@ using Data.Entities.Enums;
 using Logica.Interfaces;
 using Logica.Models;
 using Logica.Models.Carts;
+using Logica.Models.Products;
+using Logica.Models.Category.Responses;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +13,6 @@ namespace TechTrendEmporium.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "SuperAdmin")]
     public class AdminController : BaseController
     {
         private readonly AppDbContext _context;
@@ -41,13 +42,15 @@ namespace TechTrendEmporium.Api.Controllers
         }
 
         // ============================================
-        // GESTIÓN DE SESIONES
+        // SESSION MANAGEMENT (SuperAdmin Only)
         // ============================================
 
         /// <summary>
-        /// Obtener todas las sesiones activas
+        /// Get all active sessions
         /// </summary>
         [HttpGet("sessions/active")]
+        [Tags("Admin - Sessions Management")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<object>> GetActiveSessions()
         {
             try
@@ -75,20 +78,22 @@ namespace TechTrendEmporium.Api.Controllers
                     totalActiveSessions = activeSessions.Count,
                     sessions = activeSessions,
                     timestamp = DateTime.UtcNow,
-                    message = "Sesiones activas obtenidas exitosamente"
+                    message = "Active sessions retrieved successfully"
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error obteniendo las sesiones activas");
-                return StatusCode(500, new { message = "Error interno del servidor" });
+                _logger.LogError(ex, "Error getting active sessions");
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         /// <summary>
-        /// Obtener historial completo de sesiones
+        /// Get complete session history
         /// </summary>
         [HttpGet("sessions/all")]
+        [Tags("Admin - Sessions Management")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<object>> GetAllSessions([FromQuery] int page = 1, [FromQuery] int pageSize = 50)
         {
             try
@@ -130,20 +135,22 @@ namespace TechTrendEmporium.Api.Controllers
                     pageSize = pageSize,
                     totalPages = (int)Math.Ceiling((double)totalSessions / pageSize),
                     sessions = sessions,
-                    message = "Historial de sesiones obtenido exitosamente"
+                    message = "Session history retrieved successfully"
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error obteniendo el historial completo de sesiones");
-                return StatusCode(500, new { message = "Error interno del servidor" });
+                _logger.LogError(ex, "Error getting complete session history");
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         /// <summary>
-        /// Obtener estadísticas de sesiones
+        /// Get session statistics
         /// </summary>
         [HttpGet("sessions/statistics")]
+        [Tags("Admin - Sessions Management")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<object>> GetSessionStatistics()
         {
             try
@@ -188,20 +195,22 @@ namespace TechTrendEmporium.Api.Controllers
                     sessionsByRole = sessionsByRole,
                     recentLoginsLast7Days = recentLogins,
                     timestamp = DateTime.UtcNow,
-                    message = "Estadísticas de sesiones obtenidas exitosamente"
+                    message = "Session statistics retrieved successfully"
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error obteniendo las estadísticas de sesiones");
-                return StatusCode(500, new { message = "Error interno del servidor" });
+                _logger.LogError(ex, "Error getting session statistics");
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         /// <summary>
-        /// Cerrar una sesión específica
+        /// Close a specific session
         /// </summary>
         [HttpPost("sessions/{sessionId:guid}/close")]
+        [Tags("Admin - Sessions Management")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<object>> CloseSession(Guid sessionId)
         {
             try
@@ -212,12 +221,12 @@ namespace TechTrendEmporium.Api.Controllers
 
                 if (session == null)
                 {
-                    return NotFound(new { message = "Sesión no encontrada" });
+                    return NotFound(new { message = "Session not found" });
                 }
 
                 if (session.Status != SessionStatus.Active)
                 {
-                    return BadRequest(new { message = $"La sesión ya está en estado: {session.Status}" });
+                    return BadRequest(new { message = $"Session is already in state: {session.Status}" });
                 }
 
                 session.Status = SessionStatus.Expired;
@@ -225,7 +234,7 @@ namespace TechTrendEmporium.Api.Controllers
                 
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation("Sesión {SessionId} cerrada por administrador para el usuario {Username}", 
+                _logger.LogInformation("Session {SessionId} closed by administrator for user {Username}", 
                     sessionId, session.User.Username);
 
                 return Ok(new
@@ -236,104 +245,479 @@ namespace TechTrendEmporium.Api.Controllers
                     previousStatus = "Active",
                     newStatus = "Expired",
                     closedAt = session.ClosedAt,
-                    message = "Sesión cerrada exitosamente"
+                    message = "Session closed successfully"
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error cerrando la sesión {SessionId}", sessionId);
-                return StatusCode(500, new { message = "Error interno del servidor" });
+                _logger.LogError(ex, "Error closing session {SessionId}", sessionId);
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         // ============================================
-        // GESTIÓN DE CARRITOS
+        // CART MANAGEMENT (SuperAdmin Only)
         // ============================================
 
         /// <summary>
-        /// Obtener todos los carritos con información detallada
+        /// Get all carts with detailed information
         /// </summary>
         [HttpGet("carts/all")]
+        [Tags("Admin - Carts Management")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<IEnumerable<CartFullDetailsDto>>> GetAllCarts()
         {
             try
             {
-                _logger.LogInformation("Admin obteniendo todos los carritos");
+                _logger.LogInformation("Admin getting all carts");
                 var carts = await _cartService.GetAllCartsFullDetailsAsync();
                 return Ok(carts);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error obteniendo todos los carritos para admin");
-                return StatusCode(500, new { message = "Error interno del servidor" });
+                _logger.LogError(ex, "Error getting all carts for admin");
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         /// <summary>
-        /// Obtener dashboard de carritos
+        /// Get carts dashboard
         /// </summary>
         [HttpGet("carts/dashboard")]
+        [Tags("Admin - Carts Management")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<CartsDashboardSummaryDto>> GetCartsDashboard()
         {
             try
             {
-                _logger.LogInformation("Admin obteniendo dashboard de carritos");
+                _logger.LogInformation("Admin getting carts dashboard");
                 var summary = await _cartService.GetCartsDashboardSummaryAsync();
                 return Ok(summary);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error obteniendo dashboard de carritos");
-                return StatusCode(500, new { message = "Error interno del servidor" });
+                _logger.LogError(ex, "Error getting carts dashboard");
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         /// <summary>
-        /// Obtener carritos de un usuario específico
+        /// Get carts from a specific user
         /// </summary>
         [HttpGet("carts/user/{userId:guid}")]
+        [Tags("Admin - Carts Management")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<IEnumerable<CartFullDetailsDto>>> GetUserCarts(Guid userId)
         {
             try
             {
-                _logger.LogInformation("Admin obteniendo carritos para el usuario {UserId}", userId);
+                _logger.LogInformation("Admin getting carts for user {UserId}", userId);
                 var carts = await _cartService.GetCartsByUserFullDetailsAsync(userId);
                 return Ok(carts);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error obteniendo carritos del usuario para admin");
-                return StatusCode(500, new { message = "Error interno del servidor" });
+                _logger.LogError(ex, "Error getting user carts for admin");
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         /// <summary>
-        /// Restaurar inventario de un carrito
+        /// Restore cart inventory
         /// </summary>
         [HttpPost("carts/{cartId:guid}/restore-inventory")]
+        [Tags("Admin - Carts Management")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult> RestoreCartInventory(Guid cartId)
         {
             try
             {
-                _logger.LogInformation("Admin restaurando inventario para el carrito {CartId}", cartId);
+                _logger.LogInformation("Admin restoring inventory for cart {CartId}", cartId);
                 await _cartService.RestoreInventoryAsync(cartId);
-                return Ok(new { message = "Inventario restaurado exitosamente", cartId });
+                return Ok(new { message = "Inventory restored successfully", cartId });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error restaurando inventario del carrito");
-                return StatusCode(500, new { message = "Error interno del servidor" });
+                _logger.LogError(ex, "Error restoring cart inventory");
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         // ============================================
-        // INTEGRACIONES FAKESTORE
+        // PRODUCTS MANAGEMENT (Employee & SuperAdmin)
         // ============================================
 
         /// <summary>
-        /// Obtener carritos desde FakeStore
+        /// Get all products (administrative view)
+        /// </summary>
+        [HttpGet("products/all")]
+        [Tags("Admin - Products Management")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult<IEnumerable<ProductSummaryDto>>> GetAllProducts()
+        {
+            try
+            {
+                var products = await _productService.GetAllProductsAsync();
+                var summaryProducts = products.Select(p => new ProductSummaryDto
+                {
+                    Id = p.Id,
+                    Title = p.Title,
+                    Price = p.Price,
+                    Category = p.Category
+                });
+                return Ok(summaryProducts);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting all products");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Get only approved products
+        /// </summary>
+        [HttpGet("products/approved")]
+        [Tags("Admin - Products Management")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult<IEnumerable<ProductDto>>> GetApprovedProducts()
+        {
+            try
+            {
+                var products = await _productService.GetApprovedProductsAsync();
+                return Ok(products);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting approved products");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Get products pending approval
+        /// </summary>
+        [HttpGet("products/pending-approval")]
+        [Tags("Admin - Products Management")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult<IEnumerable<ProductDto>>> GetProductsPendingApproval()
+        {
+            try
+            {
+                var products = await _productService.GetPendingApprovalAsync();
+                return Ok(products);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting products pending approval");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Approve product
+        /// </summary>
+        [HttpPost("products/{id:guid}/approve")]
+        [Tags("Admin - Products Management")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult> ApproveProduct(Guid id)
+        {
+            try
+            {
+                var approvedBy = GetCurrentUserId();
+                var success = await _productService.ApproveProductAsync(id, approvedBy);
+
+                if (!success)
+                {
+                    return NotFound($"Product with ID {id} not found");
+                }
+
+                return Ok(new { Message = "Product approved successfully" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error approving product {ProductId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Get stock summary
+        /// </summary>
+        [HttpGet("products/stock/summary")]
+        [Tags("Admin - Products Management")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult<object>> GetStockSummary()
+        {
+            try
+            {
+                var products = await _productService.GetAllProductsAsync();
+                var productsList = products.ToList();
+
+                var summary = new
+                {
+                    totalProducts = productsList.Count,
+                    inStockProducts = productsList.Count(p => p.IsInStock),
+                    outOfStockProducts = productsList.Count(p => p.IsOutOfStock),
+                    lowStockProducts = productsList.Count(p => p.IsLowStock),
+                    totalInventoryValue = (int)productsList.Sum(p => p.Price * p.InventoryAvailable)
+                };
+
+                return Ok(summary);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting stock summary");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Get low stock products
+        /// </summary>
+        [HttpGet("products/stock/low")]
+        [Tags("Admin - Products Management")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult<IEnumerable<object>>> GetLowStockProducts()
+        {
+            try
+            {
+                var products = await _productService.GetAllProductsAsync();
+                var lowStockProducts = products
+                    .Where(p => p.IsLowStock)
+                    .Select(p => new
+                    {
+                        productId = p.Id,
+                        title = p.Title,
+                        image = p.Image,
+                        availableStock = p.InventoryAvailable,
+                        totalStock = p.InventoryTotal,
+                        isOutOfStock = p.IsOutOfStock
+                    })
+                    .ToList();
+
+                return Ok(lowStockProducts);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting low stock products");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Get out of stock products
+        /// </summary>
+        [HttpGet("products/stock/out")]
+        [Tags("Admin - Products Management")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult<IEnumerable<object>>> GetOutOfStockProducts()
+        {
+            try
+            {
+                var products = await _productService.GetAllProductsAsync();
+                var outOfStockProducts = products
+                    .Where(p => p.IsOutOfStock)
+                    .Select(p => new
+                    {
+                        productId = p.Id,
+                        title = p.Title,
+                        image = p.Image,
+                        availableStock = p.InventoryAvailable,
+                        totalStock = p.InventoryTotal
+                    })
+                    .ToList();
+
+                return Ok(outOfStockProducts);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting out of stock products");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Synchronize products from FakeStore
+        /// </summary>
+        [HttpPost("products/sync-from-fakestore")]
+        [Tags("Admin - Products Management")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult<object>> SyncProductsFromFakeStore()
+        {
+            try
+            {
+                var currentUserId = GetCurrentUserId();
+                var createdBy = currentUserId == Guid.Empty ? new Guid("00000000-0000-0000-0000-000000000001") : currentUserId;
+                
+                var importedCount = await _productService.SyncAllFromFakeStoreAsync(createdBy);
+
+                return Ok(new
+                {
+                    Message = "Product synchronization completed successfully",
+                    ImportedCount = importedCount,
+                    Timestamp = DateTime.UtcNow
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error synchronizing products from FakeStore");
+                return StatusCode(500, new { message = "Error during synchronization" });
+            }
+        }
+
+        // ============================================
+        // CATEGORIES MANAGEMENT (Employee & SuperAdmin)
+        // ============================================
+
+        /// <summary>
+        /// Get all categories (administrative view)
+        /// </summary>
+        [HttpGet("categories/all")]
+        [Tags("Admin - Categories Management")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult<IEnumerable<CategoryDto>>> GetAllCategories()
+        {
+            try
+            {
+                var categories = await _categoryService.GetAllCategoriesAsync();
+                return Ok(categories);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting all categories");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Get only approved categories
+        /// </summary>
+        [HttpGet("categories/approved")]
+        [Tags("Admin - Categories Management")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult<IEnumerable<CategoryDto>>> GetApprovedCategories()
+        {
+            try
+            {
+                var categories = await _categoryService.GetApprovedCategoriesAsync();
+                return Ok(categories);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting approved categories");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Search categories (all states for admin)
+        /// </summary>
+        [HttpGet("categories/search")]
+        [Tags("Admin - Categories Management")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult<IEnumerable<CategoryDto>>> SearchAllCategories([FromQuery] string searchTerm)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    return BadRequest("Search term is required");
+                }
+
+                var categories = await _categoryService.SearchCategoriesAsync(searchTerm);
+                return Ok(categories);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error searching all categories for admin");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Get categories pending approval
+        /// </summary>
+        [HttpGet("categories/pending-approval")]
+        [Tags("Admin - Categories Management")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult<IEnumerable<CategoryDto>>> GetCategoriesPendingApproval()
+        {
+            try
+            {
+                var categories = await _categoryService.GetPendingApprovalAsync();
+                return Ok(categories);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting categories pending approval");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Approve category
+        /// </summary>
+        [HttpPost("categories/{id:guid}/approve")]
+        [Tags("Admin - Categories Management")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult> ApproveCategory(Guid id)
+        {
+            try
+            {
+                var approvedBy = GetCurrentUserId();
+                var success = await _categoryService.ApproveCategoryAsync(id, approvedBy);
+
+                if (!success)
+                {
+                    return NotFound($"Category with ID {id} not found");
+                }
+
+                return Ok(new { Message = "Category approved successfully" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error approving category {CategoryId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Reject category
+        /// </summary>
+        [HttpPost("categories/{id:guid}/reject")]
+        [Tags("Admin - Categories Management")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult> RejectCategory(Guid id)
+        {
+            try
+            {
+                var success = await _categoryService.RejectCategoryAsync(id);
+
+                if (!success)
+                {
+                    return NotFound($"Category with ID {id} not found");
+                }
+
+                return Ok(new { Message = "Category rejected successfully" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error rejecting category {CategoryId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        // ============================================
+        // FAKESTORE INTEGRATIONS (SuperAdmin Only)
+        // ============================================
+
+        /// <summary>
+        /// Get carts from FakeStore
         /// </summary>
         [HttpGet("fakestore/carts")]
+        [Tags("Admin - FakeStore API")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<IEnumerable<CartDto>>> GetFakeStoreCarts()
         {
             try
@@ -343,15 +727,17 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error obteniendo carritos desde FakeStore");
-                return StatusCode(500, new { message = "Error interno del servidor" });
+                _logger.LogError(ex, "Error getting carts from FakeStore");
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         /// <summary>
-        /// Sincronizar carritos desde FakeStore
+        /// Synchronize carts from FakeStore
         /// </summary>
         [HttpPost("fakestore/carts/sync")]
+        [Tags("Admin - FakeStore API")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<object>> SyncFakeStoreCarts()
         {
             try
@@ -360,7 +746,7 @@ namespace TechTrendEmporium.Api.Controllers
                 var result = await _cartService.SyncAllCartsFromFakeStoreAsync(currentUserId);
                 return Ok(new
                 {
-                    Message = "Sincronización de carritos completada",
+                    Message = "Cart synchronization completed",
                     SuccessfulCarts = result.CartsSuccessful,
                     FailedCarts = result.CartsFailed,
                     TotalProcessed = result.TotalCartsProcessed,
@@ -369,15 +755,17 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sincronizando carritos desde FakeStore");
-                return StatusCode(500, new { message = "Error interno del servidor" });
+                _logger.LogError(ex, "Error synchronizing carts from FakeStore");
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         /// <summary>
-        /// Obtener productos desde FakeStore
+        /// Get products from FakeStore
         /// </summary>
         [HttpGet("fakestore/products")]
+        [Tags("Admin - FakeStore API")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<IEnumerable<object>>> GetFakeStoreProducts()
         {
             try
@@ -387,15 +775,17 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error obteniendo productos desde FakeStore");
-                return StatusCode(500, new { message = "Error interno del servidor" });
+                _logger.LogError(ex, "Error getting products from FakeStore");
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         /// <summary>
-        /// Sincronizar productos desde FakeStore
+        /// Synchronize products from FakeStore
         /// </summary>
         [HttpPost("fakestore/products/sync")]
+        [Tags("Admin - FakeStore API")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<object>> SyncFakeStoreProducts()
         {
             try
@@ -407,22 +797,24 @@ namespace TechTrendEmporium.Api.Controllers
 
                 return Ok(new
                 {
-                    Message = "Sincronización de productos completada exitosamente",
+                    Message = "Product synchronization completed successfully",
                     ImportedCount = importedCount,
                     Timestamp = DateTime.UtcNow
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sincronizando productos desde FakeStore");
-                return StatusCode(500, new { message = "Error durante la sincronización" });
+                _logger.LogError(ex, "Error synchronizing products from FakeStore");
+                return StatusCode(500, new { message = "Error during synchronization" });
             }
         }
 
         /// <summary>
-        /// Obtener categorías desde FakeStore
+        /// Get categories from FakeStore
         /// </summary>
         [HttpGet("fakestore/categories")]
+        [Tags("Admin - FakeStore API")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<IEnumerable<string>>> GetFakeStoreCategories()
         {
             try
@@ -432,15 +824,17 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error obteniendo categorías desde FakeStore");
-                return StatusCode(500, new { message = "Error interno del servidor" });
+                _logger.LogError(ex, "Error getting categories from FakeStore");
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         /// <summary>
-        /// Sincronizar categorías desde FakeStore
+        /// Synchronize categories from FakeStore
         /// </summary>
         [HttpPost("fakestore/categories/sync")]
+        [Tags("Admin - FakeStore API")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<object>> SyncFakeStoreCategories()
         {
             try
@@ -452,22 +846,24 @@ namespace TechTrendEmporium.Api.Controllers
 
                 return Ok(new
                 {
-                    Message = "Sincronización de categorías completada exitosamente",
+                    Message = "Category synchronization completed successfully",
                     SyncResult = result,
                     Timestamp = DateTime.UtcNow
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sincronizando categorías desde FakeStore");
-                return StatusCode(500, new { message = "Error durante la sincronización" });
+                _logger.LogError(ex, "Error synchronizing categories from FakeStore");
+                return StatusCode(500, new { message = "Error during synchronization" });
             }
         }
 
         /// <summary>
-        /// Obtener usuarios desde FakeStore
+        /// Get users from FakeStore
         /// </summary>
         [HttpGet("fakestore/users")]
+        [Tags("Admin - FakeStore API")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<IEnumerable<object>>> GetFakeStoreUsers()
         {
             try
@@ -477,15 +873,17 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error obteniendo usuarios desde FakeStore");
-                return StatusCode(500, new { message = "Error interno del servidor" });
+                _logger.LogError(ex, "Error getting users from FakeStore");
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         /// <summary>
-        /// Sincronizar usuarios desde FakeStore
+        /// Synchronize users from FakeStore
         /// </summary>
         [HttpPost("fakestore/users/sync")]
+        [Tags("Admin - FakeStore API")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<object>> SyncFakeStoreUsers()
         {
             try
@@ -494,26 +892,28 @@ namespace TechTrendEmporium.Api.Controllers
 
                 return Ok(new
                 {
-                    Message = "Sincronización de usuarios completada exitosamente",
+                    Message = "User synchronization completed successfully",
                     ImportedCount = importedCount,
                     Timestamp = DateTime.UtcNow
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sincronizando usuarios desde FakeStore");
-                return StatusCode(500, new { message = "Error durante la sincronización" });
+                _logger.LogError(ex, "Error synchronizing users from FakeStore");
+                return StatusCode(500, new { message = "Error during synchronization" });
             }
         }
 
         // ============================================
-        // DIAGNÓSTICOS Y SALUD DEL SISTEMA
+        // SYSTEM DIAGNOSTICS (SuperAdmin Only)
         // ============================================
 
         /// <summary>
-        /// Verificar salud del sistema
+        /// Check system health
         /// </summary>
         [HttpGet("diagnostics/health")]
+        [Tags("Admin - System Diagnostics")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<object>> GetSystemHealth()
         {
             try
@@ -530,15 +930,17 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error verificando salud del sistema");
-                return StatusCode(500, new { message = "Error interno del servidor" });
+                _logger.LogError(ex, "Error checking system health");
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         /// <summary>
-        /// Obtener información del sistema
+        /// Get system information
         /// </summary>
         [HttpGet("diagnostics/system-info")]
+        [Tags("Admin - System Diagnostics")]
+        [Authorize(Roles = "SuperAdmin")]
         public ActionResult<object> GetSystemInfo()
         {
             try
@@ -558,15 +960,17 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error obteniendo información del sistema");
-                return StatusCode(500, new { message = "Error interno del servidor" });
+                _logger.LogError(ex, "Error getting system information");
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         /// <summary>
-        /// Limpiar logs antiguos y optimizar rendimiento
+        /// Clean old logs and optimize performance
         /// </summary>
         [HttpPost("maintenance/cleanup")]
+        [Tags("Admin - System Diagnostics")]
+        [Authorize(Roles = "SuperAdmin")]
         public async Task<ActionResult<object>> PerformMaintenance()
         {
             try
@@ -583,15 +987,14 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error durante el mantenimiento");
-                return StatusCode(500, new { message = "Error interno del servidor" });
+                _logger.LogError(ex, "Error during maintenance");
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         // ============================================
-        // MÉTODOS PRIVADOS HELPER
+        // PRIVATE HELPER METHODS
         // ============================================
-
         private async Task<object> CheckDatabaseHealthAsync()
         {
             try
@@ -689,14 +1092,14 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error limpiando sesiones antiguas");
+                _logger.LogError(ex, "Error cleaning old sessions");
                 return 0;
             }
         }
 
         private async Task<int> CleanupOldLogsAsync()
         {
-            // Implementar limpieza de logs si tienes tabla de logs
+            // Implement log cleanup if you have a logs table
             await Task.Delay(100); // Placeholder
             return 0;
         }
