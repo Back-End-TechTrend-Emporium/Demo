@@ -1,3 +1,4 @@
+
 using Data;
 using Data.Entities.Enums;
 using Logica.Interfaces;
@@ -15,14 +16,18 @@ namespace TechTrendEmporium.Api.Controllers
     [Route("api/[controller]")]
     public class AdminController : BaseController
     {
-        private readonly AppDbContext _context;
-        private readonly IAuthService _authService;
-        private readonly ICartService _cartService;
-        private readonly IProductService _productService;
-        private readonly ICategoryService _categoryService;
-        private readonly IUserService _userService;
-        private readonly IExternalMappingRepository _externalMappingRepository;
-        private readonly ILogger<AdminController> _logger;
+
+    private readonly AppDbContext _context;
+    private readonly IAuthService _authService;
+    private readonly ICartService _cartService;
+    private readonly IProductService _productService;
+    private readonly ICategoryService _categoryService;
+    private readonly IUserService _userService;
+    private readonly IExternalMappingRepository _externalMappingRepository;
+    private readonly ILogger<AdminController> _logger;
+
+
+        // ...existing fields...
 
         public AdminController(
             AppDbContext context,
@@ -42,6 +47,31 @@ namespace TechTrendEmporium.Api.Controllers
             _userService = userService;
             _externalMappingRepository = externalMappingRepository;
             _logger = logger;
+        }
+
+        /// <summary>
+        /// Get inventory warnings (Admin only)
+        /// </summary>
+        [HttpGet("inventory-warnings")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<IEnumerable<string>>> GetInventoryWarnings()
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                _logger.LogInformation("Getting inventory warnings for user {UserId}", userId);
+                var warnings = await _cartService.GetInventoryWarningsAsync(userId);
+                return Ok(warnings);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized("Invalid user token");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting inventory warnings");
+                return StatusCode(500, "Internal server error");
+            }
         }
 
         // ============================================
