@@ -17,17 +17,20 @@ namespace Logica.Services
     {
         private readonly IFakeStoreApiService _fakeStoreClient;
         private readonly IProductRepository _productRepository;
+        private readonly IExternalMappingRepository _externalMappingRepository;
         private readonly AppDbContext _context;
         private readonly ILogger<ProductService> _logger;
 
         public ProductService(
     IFakeStoreApiService fakeStoreClient,
     IProductRepository productRepository,
+    IExternalMappingRepository externalMappingRepository,
     AppDbContext context,
     ILogger<ProductService> logger)
 {
     _fakeStoreClient = fakeStoreClient;
     _productRepository = productRepository;
+    _externalMappingRepository = externalMappingRepository;
     _context = context;
     _logger = logger;
 }
@@ -201,11 +204,37 @@ namespace Logica.Services
 
                 var fakeStoreProducts = await _fakeStoreClient.GetProductsAsync();
                 var importedCount = 0;
+                var skippedCount = 0;
+
+                // Get all existing mappings for products to avoid checking one by one
+                var fakeStoreProductIds = fakeStoreProducts.Select(p => p.Id.ToString()).ToList();
+                var existingMappings = await _externalMappingRepository.GetMappingsBySourceIdsAsync(
+                    fakeStoreProductIds, ExternalSource.FakeStore, "PRODUCT");
+                
+                var existingSourceIds = existingMappings.Select(em => em.SourceId).ToHashSet();
 
                 foreach (var fakeStoreProduct in fakeStoreProducts)
                 {
                     try
                     {
+                        // Skip if mapping already exists unless the product was deleted
+                        if (existingSourceIds.Contains(fakeStoreProduct.Id.ToString()))
+                        {
+                            var mapping = existingMappings.First(em => em.SourceId == fakeStoreProduct.Id.ToString());
+                            var existingProduct = await _productRepository.GetByIdAsync(mapping.InternalId);
+                            
+                            if (existingProduct != null)
+                            {
+                                _logger.LogDebug("Producto {ProductId} ya existe, omitiendo", fakeStoreProduct.Id);
+                                skippedCount++;
+                                continue;
+                            }
+                            else
+                            {
+                                _logger.LogInformation("Producto {ProductId} tiene mapeo pero fue eliminado, re-importando", fakeStoreProduct.Id);
+                            }
+                        }
+
                         var importedProduct = await ImportProductFromFakeStoreAsync(fakeStoreProduct.Id, createdBy);
                         if (importedProduct != null)
                         {
@@ -219,7 +248,8 @@ namespace Logica.Services
                     }
                 }
 
-                _logger.LogInformation("Sincronización completada: {Count} productos importados", importedCount);
+                _logger.LogInformation("Sincronización completada: {ImportedCount} productos importados, {SkippedCount} omitidos", 
+                    importedCount, skippedCount);
                 return importedCount;
             }
             catch (Exception ex)
@@ -242,14 +272,24 @@ namespace Logica.Services
                     createdBy = systemUserId;
                 }
 
-                // Verificar si ya existe
-                var existingProduct = await _productRepository.GetByExternalIdAsync(
-                    fakeStoreId.ToString(), ExternalSource.FakeStore);
+                // First check if external mapping already exists
+                var existingMapping = await _externalMappingRepository.GetByExternalIdAsync(
+                    ExternalSource.FakeStore, "PRODUCT", fakeStoreId.ToString());
 
-                if (existingProduct != null)
+                if (existingMapping != null)
                 {
-                    _logger.LogInformation("Producto {ProductId} ya existe en BD", fakeStoreId);
-                    return existingProduct.ToProductDto();
+                    // Mapping exists, check if the internal product still exists
+                    var existingProduct = await _productRepository.GetByIdAsync(existingMapping.InternalId);
+                    if (existingProduct != null)
+                    {
+                        _logger.LogInformation("Producto {ProductId} ya existe en BD", fakeStoreId);
+                        return existingProduct.ToProductDto();
+                    }
+                    else
+                    {
+                        // Product was deleted but mapping still exists - will be updated below
+                        _logger.LogInformation("Mapeo existe pero producto fue eliminado, actualizando mapeo para producto {ProductId}", fakeStoreId);
+                    }
                 }
 
                 // Obtener desde FakeStore
@@ -282,7 +322,7 @@ namespace Logica.Services
 
                 var savedProduct = await _productRepository.CreateAsync(product);
 
-                // Crear ExternalMapping
+                // Create or update ExternalMapping using repository
                 var mapping = new ExternalMapping
                 {
                     Source = ExternalSource.FakeStore,
@@ -293,8 +333,7 @@ namespace Logica.Services
                     ImportedAt = DateTime.UtcNow
                 };
 
-                _context.ExternalMappings.Add(mapping);
-                await _context.SaveChangesAsync();
+                await _externalMappingRepository.CreateOrUpdateAsync(mapping);
 
                 _logger.LogInformation("Producto importado: {Title} (FakeStore ID: {FakeStoreId})", 
                     product.Title, fakeStoreId);

@@ -21,6 +21,7 @@ namespace TechTrendEmporium.Api.Controllers
         private readonly IProductService _productService;
         private readonly ICategoryService _categoryService;
         private readonly IUserService _userService;
+        private readonly IExternalMappingRepository _externalMappingRepository;
         private readonly ILogger<AdminController> _logger;
 
         public AdminController(
@@ -30,6 +31,7 @@ namespace TechTrendEmporium.Api.Controllers
             IProductService productService,
             ICategoryService categoryService,
             IUserService userService,
+            IExternalMappingRepository externalMappingRepository,
             ILogger<AdminController> logger)
         {
             _context = context;
@@ -38,6 +40,7 @@ namespace TechTrendEmporium.Api.Controllers
             _productService = productService;
             _categoryService = categoryService;
             _userService = userService;
+            _externalMappingRepository = externalMappingRepository;
             _logger = logger;
         }
 
@@ -709,198 +712,115 @@ namespace TechTrendEmporium.Api.Controllers
         }
 
         // ============================================
-        // FAKESTORE INTEGRATIONS (SuperAdmin Only)
+        // EXTERNAL MAPPINGS MANAGEMENT (SuperAdmin Only)
         // ============================================
 
         /// <summary>
-        /// Get carts from FakeStore
+        /// Clean orphaned external mappings
         /// </summary>
-        [HttpGet("fakestore/carts")]
-        [Tags("Admin - FakeStore API")]
+        [HttpPost("mappings/cleanup-orphaned")]
+        [Tags("Admin - External Mappings")]
         [Authorize(Roles = "SuperAdmin")]
-        public async Task<ActionResult<IEnumerable<CartDto>>> GetFakeStoreCarts()
+        public async Task<ActionResult<object>> CleanupOrphanedMappings()
         {
             try
             {
-                var carts = await _cartService.GetCartsFromFakeStoreAsync();
-                return Ok(carts);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting carts from FakeStore");
-                return StatusCode(500, new { message = "Internal server error" });
-            }
-        }
-
-        /// <summary>
-        /// Synchronize carts from FakeStore
-        /// </summary>
-        [HttpPost("fakestore/carts/sync")]
-        [Tags("Admin - FakeStore API")]
-        [Authorize(Roles = "SuperAdmin")]
-        public async Task<ActionResult<object>> SyncFakeStoreCarts()
-        {
-            try
-            {
-                var currentUserId = GetCurrentUserId();
-                var result = await _cartService.SyncAllCartsFromFakeStoreAsync(currentUserId);
-                return Ok(new
-                {
-                    Message = "Cart synchronization completed",
-                    SuccessfulCarts = result.CartsSuccessful,
-                    FailedCarts = result.CartsFailed,
-                    TotalProcessed = result.TotalCartsProcessed,
-                    Timestamp = DateTime.UtcNow
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error synchronizing carts from FakeStore");
-                return StatusCode(500, new { message = "Internal server error" });
-            }
-        }
-
-        /// <summary>
-        /// Get products from FakeStore
-        /// </summary>
-        [HttpGet("fakestore/products")]
-        [Tags("Admin - FakeStore API")]
-        [Authorize(Roles = "SuperAdmin")]
-        public async Task<ActionResult<IEnumerable<object>>> GetFakeStoreProducts()
-        {
-            try
-            {
-                var products = await _productService.GetProductsFromFakeStoreAsync();
-                return Ok(products);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting products from FakeStore");
-                return StatusCode(500, new { message = "Internal server error" });
-            }
-        }
-
-        /// <summary>
-        /// Synchronize products from FakeStore
-        /// </summary>
-        [HttpPost("fakestore/products/sync")]
-        [Tags("Admin - FakeStore API")]
-        [Authorize(Roles = "SuperAdmin")]
-        public async Task<ActionResult<object>> SyncFakeStoreProducts()
-        {
-            try
-            {
-                var currentUserId = GetCurrentUserId();
-                var createdBy = currentUserId == Guid.Empty ? new Guid("00000000-0000-0000-0000-000000000001") : currentUserId;
+                _logger.LogInformation("Admin starting cleanup of orphaned external mappings");
                 
-                var importedCount = await _productService.SyncAllFromFakeStoreAsync(createdBy);
-
-                return Ok(new
-                {
-                    Message = "Product synchronization completed successfully",
-                    ImportedCount = importedCount,
-                    Timestamp = DateTime.UtcNow
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error synchronizing products from FakeStore");
-                return StatusCode(500, new { message = "Error during synchronization" });
-            }
-        }
-
-        /// <summary>
-        /// Get categories from FakeStore
-        /// </summary>
-        [HttpGet("fakestore/categories")]
-        [Tags("Admin - FakeStore API")]
-        [Authorize(Roles = "SuperAdmin")]
-        public async Task<ActionResult<IEnumerable<string>>> GetFakeStoreCategories()
-        {
-            try
-            {
-                var categories = await _productService.GetCategoriesFromFakeStoreAsync();
-                return Ok(categories);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting categories from FakeStore");
-                return StatusCode(500, new { message = "Internal server error" });
-            }
-        }
-
-        /// <summary>
-        /// Synchronize categories from FakeStore
-        /// </summary>
-        [HttpPost("fakestore/categories/sync")]
-        [Tags("Admin - FakeStore API")]
-        [Authorize(Roles = "SuperAdmin")]
-        public async Task<ActionResult<object>> SyncFakeStoreCategories()
-        {
-            try
-            {
-                var currentUserId = GetCurrentUserId();
-                var createdBy = currentUserId == Guid.Empty ? new Guid("00000000-0000-0000-0000-000000000001") : currentUserId;
+                var productMappingsRemoved = await _externalMappingRepository.RemoveOrphanedMappingsAsync(
+                    ExternalSource.FakeStore, "PRODUCT");
                 
-                var result = await _categoryService.SyncCategoriesFromFakeStoreAsync(createdBy);
+                var userMappingsRemoved = await _externalMappingRepository.RemoveOrphanedMappingsAsync(
+                    ExternalSource.FakeStore, "USER");
+                
+                var categoryMappingsRemoved = await _externalMappingRepository.RemoveOrphanedMappingsAsync(
+                    ExternalSource.FakeStore, "CATEGORY");
+
+                var totalRemoved = productMappingsRemoved + userMappingsRemoved + categoryMappingsRemoved;
+
+                _logger.LogInformation("Cleanup completed: {TotalRemoved} orphaned mappings removed", totalRemoved);
 
                 return Ok(new
                 {
-                    Message = "Category synchronization completed successfully",
-                    SyncResult = result,
-                    Timestamp = DateTime.UtcNow
+                    message = "Orphaned mappings cleanup completed",
+                    removedMappings = new
+                    {
+                        products = productMappingsRemoved,
+                        users = userMappingsRemoved,
+                        categories = categoryMappingsRemoved,
+                        total = totalRemoved
+                    },
+                    timestamp = DateTime.UtcNow
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error synchronizing categories from FakeStore");
-                return StatusCode(500, new { message = "Error during synchronization" });
-            }
-        }
-
-        /// <summary>
-        /// Get users from FakeStore
-        /// </summary>
-        [HttpGet("fakestore/users")]
-        [Tags("Admin - FakeStore API")]
-        [Authorize(Roles = "SuperAdmin")]
-        public async Task<ActionResult<IEnumerable<object>>> GetFakeStoreUsers()
-        {
-            try
-            {
-                var users = await _userService.GetUsersFromFakeStoreAsync();
-                return Ok(users);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting users from FakeStore");
+                _logger.LogError(ex, "Error cleaning up orphaned mappings");
                 return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         /// <summary>
-        /// Synchronize users from FakeStore
+        /// Get external mappings statistics
         /// </summary>
-        [HttpPost("fakestore/users/sync")]
-        [Tags("Admin - FakeStore API")]
+        [HttpGet("mappings/statistics")]
+        [Tags("Admin - External Mappings")]
         [Authorize(Roles = "SuperAdmin")]
-        public async Task<ActionResult<object>> SyncFakeStoreUsers()
+        public async Task<ActionResult<object>> GetMappingsStatistics()
         {
             try
             {
-                var importedCount = await _userService.SyncAllUsersFromFakeStoreAsync();
+                var productMappings = await _context.ExternalMappings
+                    .Where(em => em.Source == ExternalSource.FakeStore && em.SourceType == "PRODUCT")
+                    .CountAsync();
+                
+                var userMappings = await _context.ExternalMappings
+                    .Where(em => em.Source == ExternalSource.FakeStore && em.SourceType == "USER")
+                    .CountAsync();
+                
+                var categoryMappings = await _context.ExternalMappings
+                    .Where(em => em.Source == ExternalSource.FakeStore && em.SourceType == "CATEGORY")
+                    .CountAsync();
+
+                // Check for orphaned mappings
+                var orphanedProductMappings = await _context.ExternalMappings
+                    .Where(em => em.Source == ExternalSource.FakeStore && em.SourceType == "PRODUCT")
+                    .Where(em => !_context.Products.Any(p => p.Id == em.InternalId))
+                    .CountAsync();
+
+                var orphanedUserMappings = await _context.ExternalMappings
+                    .Where(em => em.Source == ExternalSource.FakeStore && em.SourceType == "USER")
+                    .Where(em => !_context.Users.Any(u => u.Id == em.InternalId))
+                    .CountAsync();
+
+                var orphanedCategoryMappings = await _context.ExternalMappings
+                    .Where(em => em.Source == ExternalSource.FakeStore && em.SourceType == "CATEGORY")
+                    .Where(em => !_context.Categories.Any(c => c.Id == em.InternalId))
+                    .CountAsync();
 
                 return Ok(new
                 {
-                    Message = "User synchronization completed successfully",
-                    ImportedCount = importedCount,
-                    Timestamp = DateTime.UtcNow
+                    totalMappings = productMappings + userMappings + categoryMappings,
+                    mappingsByType = new
+                    {
+                        products = productMappings,
+                        users = userMappings,
+                        categories = categoryMappings
+                    },
+                    orphanedMappings = new
+                    {
+                        products = orphanedProductMappings,
+                        users = orphanedUserMappings,
+                        categories = orphanedCategoryMappings,
+                        total = orphanedProductMappings + orphanedUserMappings + orphanedCategoryMappings
+                    },
+                    timestamp = DateTime.UtcNow
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error synchronizing users from FakeStore");
-                return StatusCode(500, new { message = "Error during synchronization" });
+                _logger.LogError(ex, "Error getting mappings statistics");
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
@@ -975,13 +895,34 @@ namespace TechTrendEmporium.Api.Controllers
         {
             try
             {
+                var oldSessionsRemoved = await CleanupOldSessionsAsync();
+                var oldLogsRemoved = await CleanupOldLogsAsync();
+                
+                // Clean orphaned mappings
+                var orphanedProductMappings = await _externalMappingRepository.RemoveOrphanedMappingsAsync(
+                    ExternalSource.FakeStore, "PRODUCT");
+                var orphanedUserMappings = await _externalMappingRepository.RemoveOrphanedMappingsAsync(
+                    ExternalSource.FakeStore, "USER");
+                var orphanedCategoryMappings = await _externalMappingRepository.RemoveOrphanedMappingsAsync(
+                    ExternalSource.FakeStore, "CATEGORY");
+
                 var result = new
                 {
-                    oldSessionsRemoved = await CleanupOldSessionsAsync(),
-                    oldLogsRemoved = await CleanupOldLogsAsync(),
+                    oldSessionsRemoved = oldSessionsRemoved,
+                    oldLogsRemoved = oldLogsRemoved,
+                    orphanedMappingsRemoved = new
+                    {
+                        products = orphanedProductMappings,
+                        users = orphanedUserMappings,
+                        categories = orphanedCategoryMappings,
+                        total = orphanedProductMappings + orphanedUserMappings + orphanedCategoryMappings
+                    },
                     cacheCleared = true,
                     timestamp = DateTime.UtcNow
                 };
+
+                _logger.LogInformation("Maintenance completed: {SessionsRemoved} sessions, {MappingsRemoved} orphaned mappings removed", 
+                    oldSessionsRemoved, orphanedProductMappings + orphanedUserMappings + orphanedCategoryMappings);
 
                 return Ok(result);
             }
