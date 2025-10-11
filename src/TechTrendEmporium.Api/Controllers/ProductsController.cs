@@ -2,12 +2,11 @@ using Logica.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Logica.Models.Products;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 
 namespace TechTrendEmporium.Api.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/product")]
     public class ProductsController : BaseController
     {
         private readonly IProductService _productService;
@@ -21,72 +20,33 @@ namespace TechTrendEmporium.Api.Controllers
             _logger = logger;
         }
 
-
-        [HttpGet("products")]
-        [Authorize(Roles = "Employee, SuperAdmin")]
-        public async Task<ActionResult<IEnumerable<ProductSummaryDto>>> GetMyProducts()
-        {
-            try
-            {
-                var userId = GetCurrentUserId(); // From JWT when implemented
-                var products = await _productService.GetProductsByUserIdAsync(userId);
-                return Ok(products);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting user products");
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
-
-        [HttpGet("approved")]
-        public async Task<ActionResult<IEnumerable<ProductDto>>> GetApprovedProducts()
-        {
-            try
-            {
-                var products = await _productService.GetApprovedProductsAsync();
-                return Ok(products);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting approved products");
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
-
-        [HttpGet("{id:guid}")]
-        public async Task<ActionResult<ProductDto>> GetProduct(Guid id)
-        {
-            try
-            {
-                var product = await _productService.GetProductByIdAsync(id);
-
-                if (product == null)
-                {
-                    return NotFound($"Product with ID {id} not found");
-                }
-
-                return Ok(product);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting product {ProductId}", id);
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
-
+        /// <summary>
+        /// F01: Create a product
+        /// As a Superadmin, Employee - I want to create a product
+        /// </summary>
         [HttpPost]
         [Authorize(Roles = "Employee, SuperAdmin")]
-        public async Task<ActionResult<ProductCreateResponseDto>> CreateProduct(ProductCreateDto productDto)
+        [ProducesResponseType(typeof(ProductCreateResponseDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> CreateProduct([FromBody] ProductCreateDto request)
         {
             try
             {
-                var createdBy = GetCurrentUserId();
+                if (!ModelState.IsValid)
+                {
+                    return ValidationProblem(ModelState);
+                }
 
-                var product = await _productService.CreateProductAsync(productDto, createdBy);
+                var createdBy = GetCurrentUserId();
+                var userRole = GetCurrentUserRole();
+
+                var product = await _productService.CreateProductAsync(request, createdBy);
+
+                // Auto-approve if SuperAdmin, leave pending if Employee
+                if (userRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase))
+                {
+                    await _productService.ApproveProductAsync(product.Id, createdBy);
+                }
 
                 var response = new ProductCreateResponseDto
                 {
@@ -110,14 +70,45 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-
-        [HttpPut("{id:guid}")]
-        [Authorize(Roles = "Employee, SuperAdmin")]
-        public async Task<ActionResult<ProductResponseDto>> UpdateProduct(Guid id, ProductUpdateDto productDto)
+        /// <summary>
+        /// F02: View all products
+        /// As a Superadmin, Employee, Shopper - I want to view all products
+        /// </summary>
+        [HttpGet]
+        [ProducesResponseType(typeof(ProductDto[]), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetProducts()
         {
             try
             {
-                var product = await _productService.UpdateProductAsync(id, productDto);
+                var products = await _productService.GetApprovedProductsAsync();
+                return Ok(products);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting products");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// F03: Update product
+        /// As a Superadmin, employee - I want to update field of a specific product
+        /// </summary>
+        [HttpPut("{id:guid}")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        [ProducesResponseType(typeof(ProductResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> UpdateProduct(Guid id, [FromBody] ProductUpdateDto request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return ValidationProblem(ModelState);
+                }
+
+                var product = await _productService.UpdateProductAsync(id, request);
 
                 if (product == null)
                 {
@@ -133,12 +124,76 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating product {ProductId}", id);
+                _logger.LogError(ex, "Error updating product");
                 return StatusCode(500, "Internal server error");
             }
         }
 
+        /// <summary>
+        /// Get individual product details (for admin purposes)
+        /// </summary>
+        [HttpGet("{id:guid}")]
+        public async Task<ActionResult<ProductDto>> GetProduct(Guid id)
+        {
+            try
+            {
+                var product = await _productService.GetProductByIdAsync(id);
 
+                if (product == null)
+                {
+                    return NotFound($"Product with ID {id} not found");
+                }
+
+                return Ok(product);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting product {ProductId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Get user's products (Employee/SuperAdmin)
+        /// </summary>
+        [HttpGet("my-products")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
+        public async Task<ActionResult<IEnumerable<ProductSummaryDto>>> GetMyProducts()
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                var products = await _productService.GetProductsByUserIdAsync(userId);
+                return Ok(products);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting user products");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Get approved products (detailed view for admin)
+        /// </summary>
+        [HttpGet("approved")]
+        public async Task<ActionResult<IEnumerable<ProductDto>>> GetApprovedProducts()
+        {
+            try
+            {
+                var products = await _productService.GetApprovedProductsAsync();
+                return Ok(products);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting approved products");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Delete product (SuperAdmin/Employee)
+        /// </summary>
         [HttpDelete("{id:guid}")]
         [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<ProductResponseDto>> DeleteProduct(Guid id)
@@ -160,8 +215,8 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (InvalidOperationException ex)
             {
-                _logger.LogWarning(ex, "Operación inválida al eliminar producto {ProductId}", id);
-                return NotFound(ex.Message); // Returns 404 if the product is already deleted
+                _logger.LogWarning(ex, "Operaci�n inv�lida al eliminar producto {ProductId}", id);
+                return NotFound(ex.Message);
             }
             catch (Exception ex)
             {
@@ -170,7 +225,9 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-
+        /// <summary>
+        /// Search products
+        /// </summary>
         [HttpGet("search")]
         public async Task<ActionResult<IEnumerable<ProductDto>>> SearchProducts([FromQuery] string searchTerm)
         {
@@ -181,9 +238,7 @@ namespace TechTrendEmporium.Api.Controllers
                     return BadRequest("Search term is required");
                 }
 
-                // The service already filters for approved products only
                 var products = await _productService.SearchProductsAsync(searchTerm);
-                
                 return Ok(products);
             }
             catch (Exception ex)
@@ -193,81 +248,13 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
+        // === APPROVAL OPERATIONS ===
 
-
-        // FakeStore usage
-
-
-        [HttpGet("fakestore")]
-        public async Task<ActionResult<IEnumerable<ProductDto>>> GetProductsFromFakeStore()
-        {
-            try
-            {
-                var products = await _productService.GetProductsFromFakeStoreAsync();
-                return Ok(products);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting products from FakeStore");
-                return StatusCode(500, "Error getting products from FakeStore");
-            }
-        }
-
-
-        [HttpGet("fakestore/{id:int}")]
-        public async Task<ActionResult<ProductDto>> GetProductFromFakeStore(int id)
-        {
-            try
-            {
-                var product = await _productService.GetProductFromFakeStoreAsync(id);
-                if (product == null)
-                {
-                    return NotFound($"Product with ID {id} not found in FakeStore");
-                }
-                return Ok(product);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting product {ProductId} from FakeStore", id);
-                return StatusCode(500, "Error getting product from FakeStore");
-            }
-        }
-
-        [HttpGet("fakestore/categories")]
-        public async Task<ActionResult<IEnumerable<string>>> GetCategoriesFromFakeStore()
-        {
-            try
-            {
-                var categories = await _productService.GetCategoriesFromFakeStoreAsync();
-                return Ok(categories);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting categories from FakeStore");
-                return StatusCode(500, "Error getting categories from FakeStore");
-            }
-        }
-
-        [HttpGet("fakestore/category/{category}")]
-        public async Task<ActionResult<IEnumerable<ProductDto>>> GetProductsByCategoryFromFakeStore(string category)
-        {
-            try
-            {
-                var products = await _productService.GetProductsByCategoryFromFakeStoreAsync(category);
-                return Ok(products);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting products by category from FakeStore");
-                return StatusCode(500, "Error getting products by category from FakeStore");
-            }
-        }
-
-
-        // Approval Operations
-
-
+        /// <summary>
+        /// Get products pending approval
+        /// </summary>
         [HttpGet("pending-approval")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult<IEnumerable<ProductDto>>> GetPendingApproval()
         {
             try
@@ -282,8 +269,11 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-
+        /// <summary>
+        /// Approve product
+        /// </summary>
         [HttpPost("{id:guid}/approve")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult> ApproveProduct(Guid id)
         {
             try
@@ -305,8 +295,11 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
-
+        /// <summary>
+        /// Reject product
+        /// </summary>
         [HttpPost("{id:guid}/reject")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult> RejectProduct(Guid id)
         {
             try
@@ -327,27 +320,89 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
+        // === FAKESTORE OPERATIONS ===
 
-
-        // Utilities
-
-
-        private static Guid ConvertIntToGuid(int id)
+        /// <summary>
+        /// Get products from FakeStore
+        /// </summary>
+        [HttpGet("fakestore")]
+        public async Task<ActionResult<IEnumerable<ProductDto>>> GetProductsFromFakeStore()
         {
-            var bytes = new byte[16];
-            var idBytes = BitConverter.GetBytes(id);
-            Array.Copy(idBytes, 0, bytes, 0, 4);
-            return new Guid(bytes);
+            try
+            {
+                var products = await _productService.GetProductsFromFakeStoreAsync();
+                return Ok(products);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting products from FakeStore");
+                return StatusCode(500, "Error getting products from FakeStore");
+            }
         }
 
-        private static int ConvertGuidToInt(Guid guid)
+        /// <summary>
+        /// Get product from FakeStore by ID
+        /// </summary>
+        [HttpGet("fakestore/{id:int}")]
+        public async Task<ActionResult<ProductDto>> GetProductFromFakeStore(int id)
         {
-            var bytes = guid.ToByteArray();
-            return BitConverter.ToInt32(bytes, 0);
+            try
+            {
+                var product = await _productService.GetProductFromFakeStoreAsync(id);
+                if (product == null)
+                {
+                    return NotFound($"Product with ID {id} not found in FakeStore");
+                }
+                return Ok(product);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting product {ProductId} from FakeStore", id);
+                return StatusCode(500, "Error getting product from FakeStore");
+            }
         }
 
-        // === SIMPLE INVENTORY OPERATIONS ===
+        /// <summary>
+        /// Get categories from FakeStore
+        /// </summary>
+        [HttpGet("fakestore/categories")]
+        public async Task<ActionResult<IEnumerable<string>>> GetCategoriesFromFakeStore()
+        {
+            try
+            {
+                var categories = await _productService.GetCategoriesFromFakeStoreAsync();
+                return Ok(categories);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting categories from FakeStore");
+                return StatusCode(500, "Error getting categories from FakeStore");
+            }
+        }
 
+        /// <summary>
+        /// Get products by category from FakeStore
+        /// </summary>
+        [HttpGet("fakestore/category/{category}")]
+        public async Task<ActionResult<IEnumerable<ProductDto>>> GetProductsByCategoryFromFakeStore(string category)
+        {
+            try
+            {
+                var products = await _productService.GetProductsByCategoryFromFakeStoreAsync(category);
+                return Ok(products);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting products by category from FakeStore");
+                return StatusCode(500, "Error getting products by category from FakeStore");
+            }
+        }
+
+        // === INVENTORY OPERATIONS ===
+
+        /// <summary>
+        /// Get product stock information
+        /// </summary>
         [HttpGet("{id:guid}/stock")]
         public async Task<ActionResult<object>> GetProductStock(Guid id)
         {
@@ -366,7 +421,7 @@ namespace TechTrendEmporium.Api.Controllers
                     productImage = product.Image,
                     totalStock = product.InventoryTotal,
                     availableStock = product.InventoryAvailable,
-                    reservedStock = Math.Max(0, product.InventoryTotal - product.InventoryAvailable), // Calculado
+                    reservedStock = Math.Max(0, product.InventoryTotal - product.InventoryAvailable),
                     isInStock = product.IsInStock,
                     isLowStock = product.IsLowStock,
                     isOutOfStock = product.IsOutOfStock
@@ -381,16 +436,20 @@ namespace TechTrendEmporium.Api.Controllers
             }
         }
 
+        /// <summary>
+        /// Update product stock
+        /// </summary>
         [HttpPut("{id:guid}/stock")]
+        [Authorize(Roles = "Employee, SuperAdmin")]
         public async Task<ActionResult> UpdateProductStock(Guid id, [FromBody] object stockUpdate)
         {
             try
             {
-                // TODO: Implementar actualización de stock cuando sea necesario
-                _logger.LogInformation("📦 Stock update requested for product {ProductId}: {Update}", 
+                _logger.LogInformation("?? Stock update requested for product {ProductId}: {Update}",
                     id, stockUpdate);
 
-                return Ok(new { 
+                return Ok(new
+                {
                     message = "Stock update request logged",
                     productId = id,
                     updateData = stockUpdate
