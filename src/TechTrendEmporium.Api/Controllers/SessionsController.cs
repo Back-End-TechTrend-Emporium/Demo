@@ -74,7 +74,6 @@ namespace TechTrendEmporium.Api.Controllers
                 }
 
                 // Aquí necesitarías implementar un método en el servicio para obtener historial
-
                 // Por ahora retornamos un placeholder
                 return Ok(new
                 {
