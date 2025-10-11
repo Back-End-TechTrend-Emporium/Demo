@@ -8,7 +8,8 @@ namespace Logica.Models.Products
     {
         public string? Title { get; set; }
         public decimal? Price { get; set; }
-
+        public string? Category { get; set; }  // Add category filter
+        
         // Paginación
         public int Page { get; set; } = 1;        // 1-based
         public int PageSize { get; set; } = 12;
