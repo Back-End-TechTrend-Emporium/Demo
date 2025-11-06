@@ -147,6 +147,6 @@ public class CategoryServiceTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => _categoryService.ApproveCategoryAsync(categoryId, approverId));
-        Assert.Equal("Usuario aprobador no encontrado", exception.Message);
+        Assert.Equal("Approver user not found", exception.Message);
     }
 }

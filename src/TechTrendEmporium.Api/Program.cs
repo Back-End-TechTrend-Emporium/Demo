@@ -156,6 +156,19 @@ builder.Services.AddAuthorization();
 
 // === Standard API services ===
 builder.Services.AddControllers();
+
+// === CORS Configuration ===
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173") // Frontend development server
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
+    });
+});
+
 builder.Services.AddEndpointsApiExplorer();
 
 // === Swagger configuration with JWT support ===
@@ -249,6 +262,9 @@ if (swaggerEnabled)
 }
 
 // *** NO usar app.UseForwardedHeaders(...) si vamos a setear el setting en Azure ***
+
+// === CORS Middleware ===
+app.UseCors("AllowFrontend");
 
 // Decide si forzar redirección a HTTPS
 // Sugerencia: en producción normalmente NO hace falta; Azure ya puede forzar HTTPS.
