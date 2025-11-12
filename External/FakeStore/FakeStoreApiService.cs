@@ -127,6 +127,21 @@ namespace External.FakeStore
             }
         }
 
+        public async Task<IEnumerable<FakeStoreCartResponse>> GetUserCartsAsync(int userId)
+        {
+            try
+            {
+                var response = await _httpClient.GetStringAsync($"/carts/user/{userId}");
+                var userCarts = JsonSerializer.Deserialize<List<FakeStoreCartResponse>>(response, _jsonOptions);
+                
+                return userCarts ?? Enumerable.Empty<FakeStoreCartResponse>();
+            }
+            catch (HttpRequestException)
+            {
+                return Enumerable.Empty<FakeStoreCartResponse>();
+            }
+        }
+
         // Users
         public async Task<IEnumerable<FakeStoreUserResponse>> GetUsersAsync()
         {

@@ -39,7 +39,7 @@ namespace Logica.Repositories
                 .FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower(), cancellationToken);
         }
 
-        // IMPLEMENTACIÓN EXACTA de la firma de la interfaz
+        
         public async Task<User?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
         {
             return await _context.Users
@@ -89,6 +89,17 @@ namespace Logica.Repositories
         public async Task UpdateSessionAsync(Session session, CancellationToken cancellationToken = default)
         {
             _context.Sessions.Update(session);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        public async Task<List<User>> GetUsersByUsernamesAsync(List<string> usernames, CancellationToken cancellationToken = default)
+        {
+            var lowerUsernames = usernames.Select(u => u.ToLower()).ToList();
+            return await _context.Users.Where(u => lowerUsernames.Contains(u.Username.ToLower())).ToListAsync(cancellationToken);
+        }
+
+        public async Task DeleteUsersAsync(List<User> users, CancellationToken cancellationToken = default)
+        {
+            _context.Users.RemoveRange(users);
             await _context.SaveChangesAsync(cancellationToken);
         }
     }

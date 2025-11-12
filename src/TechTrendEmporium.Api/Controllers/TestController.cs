@@ -3,7 +3,8 @@ using Data.Entities;
 using External.FakeStore.Models;
 using Logica.Interfaces;
 using Logica.Mappers;
-using Logica.Models;
+using Logica.Models.Auth.Create;
+using Logica.Models.User;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -36,12 +37,11 @@ namespace Back_End_TechTrend_Emporium.Controllers
         {
             try
             {
-                // Usando el servicio con validaciones automáticas
-                var user = await _userService.CreateUserAsync(
-                    request.Email,
-                    request.Username,
-                    request.Password,
-                    request.Role);
+                // Usando el servicio con validaciones automï¿½ticas
+                var (user, error) = await _userService.CreateUserAsync(request);
+
+                if (user == null)
+                    return BadRequest(error);
 
                 return CreatedAtAction(nameof(GetUsers), new { id = user.Id }, user);
             }

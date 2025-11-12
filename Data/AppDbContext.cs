@@ -31,6 +31,20 @@ namespace Data
         {
             base.OnModelCreating(modelBuilder);
 
+            // Configure cascade delete for Cart -> CartItems
+            modelBuilder.Entity<Cart>()
+                .HasMany(c => c.CartItems)
+                .WithOne(ci => ci.Cart)
+                .HasForeignKey(ci => ci.CartId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure cascade delete for Wishlist -> WishlistItems  
+            modelBuilder.Entity<Wishlist>()
+                .HasMany(w => w.WishlistItems)
+                .WithOne(wi => wi.Wishlist)
+                .HasForeignKey(wi => wi.WishlistId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             // Configure User relationships to avoid cascade delete conflicts
             modelBuilder.Entity<User>()
                 .HasMany(u => u.CreatedProducts)

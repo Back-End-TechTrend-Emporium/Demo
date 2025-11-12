@@ -17,17 +17,20 @@ namespace Logica.Services
     {
         private readonly IFakeStoreApiService _fakeStoreClient;
         private readonly IProductRepository _productRepository;
+        private readonly IExternalMappingRepository _externalMappingRepository;
         private readonly AppDbContext _context;
         private readonly ILogger<ProductService> _logger;
 
         public ProductService(
     IFakeStoreApiService fakeStoreClient,
     IProductRepository productRepository,
+    IExternalMappingRepository externalMappingRepository,
     AppDbContext context,
     ILogger<ProductService> logger)
 {
     _fakeStoreClient = fakeStoreClient;
     _productRepository = productRepository;
+    _externalMappingRepository = externalMappingRepository;
     _context = context;
     _logger = logger;
 }
@@ -56,14 +59,23 @@ namespace Logica.Services
         {
             try
             {
-                // Buscar o crear categoría
+                // Validate that the createdBy user exists, fallback to system user if not
+                var systemUserId = new Guid("00000000-0000-0000-0000-000000000001");
+                var userExists = await _context.Users.AnyAsync(u => u.Id == createdBy);
+                if (!userExists)
+                {
+                    _logger.LogWarning("User {UserId} not found for product creation, using system user", createdBy);
+                    createdBy = systemUserId;
+                }
+
+                // Buscar o crear categorï¿½a
                 var category = await GetOrCreateCategoryAsync(productDto.Category, createdBy);
 
                 // Crear producto
                 var product = productDto.ToProduct();
                 product.CategoryId = category.Id;
                 product.CreatedBy = createdBy;
-                product.State = ApprovalState.PendingApproval; // Productos manuales necesitan aprobación
+                product.State = ApprovalState.PendingApproval; // Productos manuales necesitan aprobaciï¿½n
 
                 var createdProduct = await _productRepository.CreateAsync(product);
                 
@@ -86,7 +98,7 @@ namespace Logica.Services
                 var product = await _productRepository.GetByIdAsync(id);
                 if (product == null) return null;
 
-                // Si se cambia la categoría, buscar o crear la nueva
+                // Si se cambia la categorï¿½a, buscar o crear la nueva
                 if (!string.IsNullOrEmpty(productDto.Category))
                 {
                     var category = await GetOrCreateCategoryAsync(productDto.Category, product.CreatedBy);
@@ -132,7 +144,25 @@ namespace Logica.Services
         public async Task<IEnumerable<ProductDto>> SearchProductsAsync(string searchTerm)
         {
             var products = await _productRepository.SearchAsync(searchTerm);
-            return products.Select(p => p.ToProductDto());
+            // Only return approved products for public consumption
+            var approvedProducts = products.Where(p => p.State == ApprovalState.Approved);
+            return approvedProducts.Select(p => p.ToProductDto());
+        }
+
+        public async Task<IEnumerable<ProductDto>> GetProductsByCategoryIdAsync(Guid categoryId)
+        {
+            try
+            {
+                var products = await _productRepository.GetByCategoryIdAsync(categoryId);
+                // Only return approved products for public consumption
+                var approvedProducts = products.Where(p => p.State == ApprovalState.Approved);
+                return approvedProducts.Select(p => p.ToProductDto());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting products for category {CategoryId}", categoryId);
+                throw;
+            }
         }
 
         #endregion
@@ -170,15 +200,41 @@ namespace Logica.Services
         {
             try
             {
-                _logger.LogInformation("Iniciando sincronización completa desde FakeStore");
+                _logger.LogInformation("Iniciando sincronizaciï¿½n completa desde FakeStore");
 
                 var fakeStoreProducts = await _fakeStoreClient.GetProductsAsync();
                 var importedCount = 0;
+                var skippedCount = 0;
+
+                // Get all existing mappings for products to avoid checking one by one
+                var fakeStoreProductIds = fakeStoreProducts.Select(p => p.Id.ToString()).ToList();
+                var existingMappings = await _externalMappingRepository.GetMappingsBySourceIdsAsync(
+                    fakeStoreProductIds, ExternalSource.FakeStore, "PRODUCT");
+                
+                var existingSourceIds = existingMappings.Select(em => em.SourceId).ToHashSet();
 
                 foreach (var fakeStoreProduct in fakeStoreProducts)
                 {
                     try
                     {
+                        // Skip if mapping already exists unless the product was deleted
+                        if (existingSourceIds.Contains(fakeStoreProduct.Id.ToString()))
+                        {
+                            var mapping = existingMappings.First(em => em.SourceId == fakeStoreProduct.Id.ToString());
+                            var existingProduct = await _productRepository.GetByIdAsync(mapping.InternalId);
+                            
+                            if (existingProduct != null)
+                            {
+                                _logger.LogDebug("Producto {ProductId} ya existe, omitiendo", fakeStoreProduct.Id);
+                                skippedCount++;
+                                continue;
+                            }
+                            else
+                            {
+                                _logger.LogInformation("Producto {ProductId} tiene mapeo pero fue eliminado, re-importando", fakeStoreProduct.Id);
+                            }
+                        }
+
                         var importedProduct = await ImportProductFromFakeStoreAsync(fakeStoreProduct.Id, createdBy);
                         if (importedProduct != null)
                         {
@@ -192,12 +248,13 @@ namespace Logica.Services
                     }
                 }
 
-                _logger.LogInformation("Sincronización completada: {Count} productos importados", importedCount);
+                _logger.LogInformation("Sincronizaciï¿½n completada: {ImportedCount} productos importados, {SkippedCount} omitidos", 
+                    importedCount, skippedCount);
                 return importedCount;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error en sincronización completa");
+                _logger.LogError(ex, "Error en sincronizaciï¿½n completa");
                 throw;
             }
         }
@@ -206,14 +263,33 @@ namespace Logica.Services
         {
             try
             {
-                // Verificar si ya existe
-                var existingProduct = await _productRepository.GetByExternalIdAsync(
-                    fakeStoreId.ToString(), ExternalSource.FakeStore);
-
-                if (existingProduct != null)
+                // Validate that the createdBy user exists, fallback to system user if not
+                var systemUserId = new Guid("00000000-0000-0000-0000-000000000001");
+                var userExists = await _context.Users.AnyAsync(u => u.Id == createdBy);
+                if (!userExists)
                 {
-                    _logger.LogInformation("Producto {ProductId} ya existe en BD", fakeStoreId);
-                    return existingProduct.ToProductDto();
+                    _logger.LogWarning("User {UserId} not found, using system user for import", createdBy);
+                    createdBy = systemUserId;
+                }
+
+                // First check if external mapping already exists
+                var existingMapping = await _externalMappingRepository.GetByExternalIdAsync(
+                    ExternalSource.FakeStore, "PRODUCT", fakeStoreId.ToString());
+
+                if (existingMapping != null)
+                {
+                    // Mapping exists, check if the internal product still exists
+                    var existingProduct = await _productRepository.GetByIdAsync(existingMapping.InternalId);
+                    if (existingProduct != null)
+                    {
+                        _logger.LogInformation("Producto {ProductId} ya existe en BD", fakeStoreId);
+                        return existingProduct.ToProductDto();
+                    }
+                    else
+                    {
+                        // Product was deleted but mapping still exists - will be updated below
+                        _logger.LogInformation("Mapeo existe pero producto fue eliminado, actualizando mapeo para producto {ProductId}", fakeStoreId);
+                    }
                 }
 
                 // Obtener desde FakeStore
@@ -224,7 +300,7 @@ namespace Logica.Services
                     return null;
                 }
 
-                // Buscar o crear categoría
+                // Buscar o crear categorï¿½a
                 var category = await GetOrCreateCategoryAsync(fakeStoreProduct.Category, createdBy);
 
                 // Crear producto
@@ -239,12 +315,14 @@ namespace Logica.Services
                     State = ApprovalState.Approved, // Auto-aprobar productos importados
                     RatingAverage = (decimal)(fakeStoreProduct.Rating?.Rate ?? 0),
                     RatingCount = fakeStoreProduct.Rating?.Count ?? 0,
+                    InventoryTotal = 100, // Default inventory for imported products
+                    InventoryAvailable = 100,
                     CreatedAt = DateTime.UtcNow
                 };
 
                 var savedProduct = await _productRepository.CreateAsync(product);
 
-                // Crear ExternalMapping
+                // Create or update ExternalMapping using repository
                 var mapping = new ExternalMapping
                 {
                     Source = ExternalSource.FakeStore,
@@ -255,8 +333,7 @@ namespace Logica.Services
                     ImportedAt = DateTime.UtcNow
                 };
 
-                _context.ExternalMappings.Add(mapping);
-                await _context.SaveChangesAsync();
+                await _externalMappingRepository.CreateOrUpdateAsync(mapping);
 
                 _logger.LogInformation("Producto importado: {Title} (FakeStore ID: {FakeStoreId})", 
                     product.Title, fakeStoreId);
@@ -328,7 +405,8 @@ namespace Logica.Services
             try
             {
                 var products = await _productRepository.GetByCreatorIdAsync(userId);
-                return products.Select(ProductMapper.ToSummaryDto);
+                return products.Select(p => p.ToSummaryDto());
+
             }
             catch (Exception ex)
             {
@@ -343,6 +421,15 @@ namespace Logica.Services
 
         private async Task<Category> GetOrCreateCategoryAsync(string categoryName, Guid createdBy)
         {
+            // Validate that the createdBy user exists, fallback to system user if not
+            var systemUserId = new Guid("00000000-0000-0000-0000-000000000001");
+            var userExists = await _context.Users.AnyAsync(u => u.Id == createdBy);
+            if (!userExists)
+            {
+                _logger.LogWarning("User {UserId} not found for category creation, using system user", createdBy);
+                createdBy = systemUserId;
+            }
+
             var existing = await _context.Categories
                 .FirstOrDefaultAsync(c => c.Name.ToLower() == categoryName.ToLower());
 
@@ -353,17 +440,16 @@ namespace Logica.Services
             {
                 Name = categoryName,
                 Slug = GenerateSlug(categoryName),
-                State = ApprovalState.PendingApproval, // Changed to pending
+                State = ApprovalState.PendingApproval, // Categories should always start as PendingApproval
                 CreatedBy = createdBy,
-                ApprovedBy = null, // Leave null until approved
                 CreatedAt = DateTime.UtcNow,
-                ApprovedAt = null // Leave null until approved
+                UpdatedAt = DateTime.UtcNow
             };
 
             _context.Categories.Add(category);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Categoría creada: {CategoryName}", categoryName);
+            _logger.LogInformation("Category created with PendingApproval state: {CategoryName}", categoryName);
             return category;
         }
 
@@ -371,12 +457,12 @@ namespace Logica.Services
         {
             return name.ToLower()
                       .Replace(" ", "-")
-                      .Replace("ñ", "n")
-                      .Replace("á", "a")
-                      .Replace("é", "e")
-                      .Replace("í", "i")
-                      .Replace("ó", "o")
-                      .Replace("ú", "u")
+                      .Replace("ï¿½", "n")
+                      .Replace("ï¿½", "a")
+                      .Replace("ï¿½", "e")
+                      .Replace("ï¿½", "i")
+                      .Replace("ï¿½", "o")
+                      .Replace("ï¿½", "u")
                       .Trim();
         }
 
@@ -384,22 +470,18 @@ namespace Logica.Services
         {
             return new ProductDto
             {
-                Id = Guid.NewGuid(), // Generar GUID único para productos de FakeStore
+                Id = Guid.NewGuid(),
                 Title = fakeStoreProduct.Title,
                 Price = fakeStoreProduct.Price,
                 Description = fakeStoreProduct.Description,
                 Category = fakeStoreProduct.Category,
                 Image = fakeStoreProduct.Image,
-                Rating = fakeStoreProduct.Rating != null ? new RatingDto
-                {
-                    Rate = fakeStoreProduct.Rating.Rate,
-                    Count = fakeStoreProduct.Rating.Count
-                } : null
+                Rating = fakeStoreProduct.Rating != null
+                    ? new RatingDto { Rate = fakeStoreProduct.Rating.Rate, Count = fakeStoreProduct.Rating.Count }
+                    : null
             };
-            
         }
 
         #endregion
-
     }
 }

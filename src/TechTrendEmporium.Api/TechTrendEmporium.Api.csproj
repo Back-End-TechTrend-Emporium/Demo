@@ -28,9 +28,8 @@
     <PackageReference Include="Serilog.Enrichers.Process" Version="3.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
 
-    <!-- Swashbuckle principal que ya tenías -->
+
     <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.5" />
-    <!-- 🔥 Nuevo: Anotaciones para [SwaggerOperation] en la MISMA versión -->
     <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="9.0.5" />
   </ItemGroup>
 

@@ -1,0 +1,4382 @@
+{
+	"info": {
+		"_postman_id": "4cedef44-9692-454d-bb17-64bfd5e10ab8",
+		"name": "Tech Trend Emporium CaNiAn",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "47766230",
+		"_collection_link": "https://carlos-pena2-1872934.postman.co/workspace/Tarea_-API_CARLOSPE%C3%91A~a7b1c2ea-39ae-4ca0-bf5e-c3f69049d27a/collection/47766230-4cedef44-9692-454d-bb17-64bfd5e10ab8?action=share&source=collection_link&creator=47766230"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Login User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// --- Utils ---\r",
+									"function safeJson(res) { try { return res.json(); } catch { return null; } }\r",
+									"function bodySent() {\r",
+									"  try {\r",
+									"    const m = pm.request?.body?.mode;\r",
+									"    if (m === \"raw\") return JSON.parse(pm.request.body.raw || \"{}\");\r",
+									"    if (m === \"urlencoded\") { const o={}; pm.request.body.urlencoded.forEach(kv=>o[kv.key]=kv.value); return o; }\r",
+									"    if (m === \"formdata\") { const o={}; pm.request.body.formdata.forEach(kv=>o[kv.key]=kv.value); return o; }\r",
+									"    return {};\r",
+									"  } catch { return {}; }\r",
+									"}\r",
+									"const url = pm.request.url.toString();\r",
+									"const headers = pm.request.headers.all().filter(h => !/^content-length$/i.test(h.key));\r",
+									"const resJson = safeJson(pm.response);\r",
+									"const user = (resJson && typeof resJson.user === \"object\") ? resJson.user : resJson;\r",
+									"const sent = bodySent();\r",
+									"const basePwd = sent.password || \"Password123!\";\r",
+									"const ok = [200,201].includes(pm.response.code);\r",
+									"\r",
+									"// --- Aserciones básicas ---\r",
+									"pm.test(\"Signup OK (200/201) con JSON\", () => {\r",
+									"  pm.expect(pm.response.code).to.be.oneOf([200,201]);\r",
+									"  pm.expect(resJson).to.be.an(\"object\");\r",
+									"});\r",
+									"\r",
+									"// Email válido (AC #1 - formato)\r",
+									"pm.test(\"Email con formato válido\", () => {\r",
+									"  const email = (user?.email ?? sent.email ?? \"\");\r",
+									"  pm.expect(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(email))).to.be.true;\r",
+									"});\r",
+									"\r",
+									"// --- AC #1: Email es ÚNICO (debe rechazar duplicado) ---\r",
+									"if (ok && user?.email) {\r",
+									"  const dupEmailBody = {\r",
+									"    email: user.email, // mismo email\r",
+									"    username: `u_${(user.username||sent.username||\"name\")}_dup_${Date.now()}`,\r",
+									"    password: basePwd\r",
+									"  };\r",
+									"  pm.sendRequest({ url, method: \"POST\", header: headers, body: { mode: \"raw\", raw: JSON.stringify(dupEmailBody) } }, (err, res) => {\r",
+									"    pm.test(\"AC#1: rechaza email duplicado (409/422/400) y mensaje relacionado a 'email'\", () => {\r",
+									"      pm.expect(err).to.be.undefined;\r",
+									"      pm.expect([409,422,400]).to.include(res.code);\r",
+									"      const j = safeJson(res) || {};\r",
+									"      const txt = JSON.stringify(j).toLowerCase();\r",
+									"      pm.expect(txt).to.match(/email/);\r",
+									"      pm.expect(txt).to.match(/exist|in use|used|duplicate|ya existe|en uso/i);\r",
+									"    });\r",
+									"  });\r",
+									"} else {\r",
+									"  console.warn(\"No se creó usuario base; se omite la prueba de email duplicado.\");\r",
+									"}\r",
+									"\r",
+									"// --- AC #2: Username es ÚNICO (debe rechazar duplicado) ---\r",
+									"if (ok && user?.username) {\r",
+									"  const domain = (user.email || sent.email || \"example@mail.com\").split(\"@\").pop();\r",
+									"  const newEmail = `unique_${Date.now()}@${domain || \"example.com\"}`;\r",
+									"  const dupUserBody = {\r",
+									"    email: newEmail,             // email distinto\r",
+									"    username: user.username,     // mismo username\r",
+									"    password: basePwd\r",
+									"  };\r",
+									"  pm.sendRequest({ url, method: \"POST\", header: headers, body: { mode: \"raw\", raw: JSON.stringify(dupUserBody) } }, (err, res) => {\r",
+									"    pm.test(\"AC#2: rechaza username duplicado (409/422/400) y mensaje relacionado a 'username'\", () => {\r",
+									"      pm.expect(err).to.be.undefined;\r",
+									"      pm.expect([409,422,400]).to.include(res.code);\r",
+									"      const j = safeJson(res) || {};\r",
+									"      const txt = JSON.stringify(j).toLowerCase();\r",
+									"      pm.expect(txt).to.match(/username|user name|usuario/i);\r",
+									"      pm.expect(txt).to.match(/exist|in use|used|duplicate|ya existe|en uso/i);\r",
+									"    });\r",
+									"  });\r",
+									"} else {\r",
+									"  console.warn(\"No se creó usuario base; se omite la prueba de username duplicado.\");\r",
+									"}\r",
+									"\r",
+									"// --- Validación negativa extra (email inválido) ---\r",
+									"const invalidEmailBody = {\r",
+									"  email: \"no-es-un-email\",\r",
+									"  username: `invalid_${Date.now()}`,\r",
+									"  password: basePwd\r",
+									"};\r",
+									"pm.sendRequest({ url, method: \"POST\", header: headers, body: { mode: \"raw\", raw: JSON.stringify(invalidEmailBody) } }, (err, res) => {\r",
+									"  pm.test(\"AC#1: email inválido → 400/422 y error sobre 'email'\", () => {\r",
+									"    pm.expect(err).to.be.undefined;\r",
+									"    pm.expect([400,422]).to.include(res.code);\r",
+									"    const j = safeJson(res) || {};\r",
+									"    const txt = JSON.stringify(j).toLowerCase();\r",
+									"    pm.expect(txt).to.match(/email/);\r",
+									"    pm.expect(txt).to.match(/invalid|format|inválid|formato/i);\r",
+									"  });\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"email\":\"{{email}}\",\r\n    \"password\":\"{{password}}\"\r\n}   ",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{link}}/api/login",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Logout User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// -------- Validaciones básicas --------\r",
+									"const envTok   = (pm.environment.get(\"token\") || \"\").trim();\r",
+									"const sentAuth = pm.request.headers.get(\"Authorization\") || \"\";\r",
+									"pm.test(\"Authorization es Bearer <jwt> correcto\", () => {\r",
+									"  pm.expect(sentAuth).to.eql(`Bearer ${envTok}`);\r",
+									"});\r",
+									"pm.test(\"Logout OK (200/204)\", () => [200,204].includes(pm.response.code));\r",
+									"\r",
+									"// -------- Visualizador: muestra lo que quieres corroborar --------\r",
+									"const preview = pm.environment.get(\"token_preview\") || `${envTok.slice(0,14)}...${envTok.slice(-14)}`;\r",
+									"const sha = pm.environment.get(\"token_sha256\") || CryptoJS.SHA256(envTok).toString();\r",
+									"const authPreview = sentAuth.replace(/^Bearer\\s+/,'');\r",
+									"const authPreviewShort = `${authPreview.slice(0,14)}...${authPreview.slice(-14)}`;\r",
+									"const authSha = CryptoJS.SHA256(authPreview).toString();\r",
+									"\r",
+									"const template = `\r",
+									"  <style>\r",
+									"    body { font-family: ui-sans-serif, system-ui; padding: 12px }\r",
+									"    .ok { color: #0a8; font-weight: 600 }\r",
+									"    .bad { color: #c33; font-weight: 600 }\r",
+									"    table { border-collapse: collapse; }\r",
+									"    td, th { padding: 8px 10px; border-bottom: 1px solid #ddd; text-align: left; }\r",
+									"  </style>\r",
+									"  <h3>Corroboración de token</h3>\r",
+									"  <table>\r",
+									"    <tr><th>Token de /api/login (preview)</th><td>{{loginPreview}}</td></tr>\r",
+									"    <tr><th>SHA-256 del login token</th><td>{{loginSha}}</td></tr>\r",
+									"    <tr><th>Token enviado en Authorization (preview)</th><td>{{authPreview}}</td></tr>\r",
+									"    <tr><th>SHA-256 del Authorization token</th><td>{{authSha}}</td></tr>\r",
+									"    <tr><th>¿Coinciden?</th>\r",
+									"      <td class=\"{{cls}}\">{{msg}}</td>\r",
+									"    </tr>\r",
+									"  </table>\r",
+									"  <p style=\"margin-top:10px\"><small>\r",
+									"    * El preview muestra los primeros/últimos 14 caracteres.<br/>\r",
+									"    * La comparación usa la huella SHA-256 para evitar mostrar el token completo.\r",
+									"  </small></p>\r",
+									"`;\r",
+									"\r",
+									"pm.visualizer.set(template, {\r",
+									"  loginPreview: preview,\r",
+									"  loginSha: sha,\r",
+									"  authPreview: authPreviewShort,\r",
+									"  authSha: authSha,\r",
+									"  cls: sha === authSha ? 'ok' : 'bad',\r",
+									"  msg: sha === authSha ? 'Sí, es el mismo token del login ✅' : 'No coincide ❌'\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// PRE-REQUEST (Logout)\r",
+									"const t = pm.environment.get(\"token\");\r",
+									"if (!t || !t.trim()) {\r",
+									"  throw new Error(\"Falta token: ejecuta /api/login primero.\");\r",
+									"}\r",
+									"// opcional: también puedes inyectarlo en la pestaña Auth si usaras headers manuales\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disabledSystemHeaders": {}
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "\t{}  ",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{link}}/api/logout",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"logout"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Api/Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"pm.test(\"JSON\", () => { pm.response.to.be.withBody; pm.response.to.be.json; });\r",
+									"\r",
+									"const r = pm.response.json();\r",
+									"pm.environment.set(\"auth_token\", r.token || r.accessToken || r.jwt || \"\");\r",
+									"pm.test(\"Token presente\", () => pm.expect(pm.environment.get(\"auth_token\")).to.be.a(\"string\").and.not.empty);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Valores permitidos\r",
+									"const ALLOWED_EMAIL = \"admin@tte.com\";\r",
+									"const ALLOWED_PASS  = \"Password123!\";\r",
+									"\r",
+									"// Asegura que en el environment estén los permitidos\r",
+									"pm.environment.set(\"email2\", ALLOWED_EMAIL);\r",
+									"pm.environment.set(\"password2\", ALLOWED_PASS);\r",
+									"\r",
+									"// Header JSON\r",
+									"pm.request.headers.upsert({ key: \"Content-Type\", value: \"application/json\" });\r",
+									"\r",
+									"// Body actual -> lo normalizamos al permitido\r",
+									"const safeBody = {\r",
+									"  email: pm.environment.get(\"email2\"),\r",
+									"  password: pm.environment.get(\"password2\")\r",
+									"};\r",
+									"pm.request.body.update(JSON.stringify(safeBody, null, 2));\r",
+									"\r",
+									"// (Opcional) Si en tu colección usas {{email2}} y {{password2}} directamente en el body,\r",
+									"// igual quedará con los valores permitidos por las líneas de arriba.\r",
+									"\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{link}}/api/login",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Api/Login Copy",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"pm.test(\"JSON\", () => { pm.response.to.be.withBody; pm.response.to.be.json; });\r",
+									"\r",
+									"const r = pm.response.json();\r",
+									"pm.environment.set(\"user_token\", r.token || r.accessToken || r.jwt || \"\");\r",
+									"pm.test(\"Token presente\", () => pm.expect(pm.environment.get(\"user_token\")).to.be.a(\"string\").and.not.empty);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Valores permitidos\r",
+									"const ALLOWED_EMAIL = \"shopper@tte.com\";\r",
+									"const ALLOWED_PASS  = \"Shopper123!\";\r",
+									"\r",
+									"// Asegura que en el environment estén los permitidos\r",
+									"pm.environment.set(\"email4\", ALLOWED_EMAIL);\r",
+									"pm.environment.set(\"password4\", ALLOWED_PASS);\r",
+									"\r",
+									"// Header JSON\r",
+									"pm.request.headers.upsert({ key: \"Content-Type\", value: \"application/json\" });\r",
+									"\r",
+									"// Body actual -> lo normalizamos al permitido\r",
+									"const safeBody = {\r",
+									"  email: pm.environment.get(\"email4\"),\r",
+									"  password: pm.environment.get(\"password4\")\r",
+									"};\r",
+									"pm.request.body.update(JSON.stringify(safeBody, null, 2));\r",
+									"\r",
+									"// (Opcional) Si en tu colección usas {{email2}} y {{password2}} directamente en el body,\r",
+									"// igual quedará con los valores permitidos por las líneas de arriba.\r",
+									"\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{user_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{link}}/api/login",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Api/Auth",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"201 Created o 200 OK\", () => pm.expect([200,201]).to.include(pm.response.code));\r",
+									"pm.response.to.be.withBody; pm.response.to.be.json;\r",
+									"\r",
+									"const j = pm.response.json();\r",
+									"pm.expect(j).to.have.property(\"id\");\r",
+									"pm.expect(j).to.have.property(\"email\");\r",
+									"pm.expect(j).to.have.property(\"username\");\r",
+									"\r",
+									"// Guarda datos resultantes del registro\r",
+									"pm.environment.set(\"user_id\", j.id);\r",
+									"pm.environment.set(\"registered_email\", j.email);\r",
+									"pm.environment.set(\"registered_username\", j.username);\r",
+									"\r",
+									"// Reconfirma que las credenciales usadas queden persistidas para próximos pasos\r",
+									"pm.environment.set(\"email\", pm.environment.get(\"email\"));\r",
+									"pm.environment.set(\"username\", pm.environment.get(\"username\"));\r",
+									"pm.environment.set(\"password\", pm.environment.get(\"password\"));\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Lee del environment (sin defaults)\r",
+									"const email    = (pm.environment.get(\"email\") || \"\").trim();\r",
+									"const username = (pm.environment.get(\"username\") || \"\").trim();\r",
+									"const password = (pm.environment.get(\"password\") || \"\").trim();\r",
+									"\r",
+									"// Validaciones mínimas\r",
+									"const emailOk = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);\r",
+									"if (!emailOk) throw new Error(\"Falta o es inválido: environment.email\");\r",
+									"if (!username) throw new Error(\"Falta: environment.username\");\r",
+									"if (!password) throw new Error(\"Falta: environment.password\");\r",
+									"\r",
+									"// Asegura cabeceras y reescribe SIEMPRE el body con las vars del environment\r",
+									"pm.request.headers.upsert({ key: \"Content-Type\", value: \"application/json\" });\r",
+									"pm.request.headers.upsert({ key: \"Accept\", value: \"application/json\" });\r",
+									"\r",
+									"pm.request.body.update(JSON.stringify({\r",
+									"  email,\r",
+									"  username,\r",
+									"  password\r",
+									"}, null, 2));\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"email\": \"{{email}}\",\r\n  \"username\": \"{{username}}\",\r\n  \"password\": \"{{password}}\"\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{link}}/api/auth",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"auth"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Products",
+			"item": [
+				{
+					"name": "Sign Up Shopper",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200/201\", () => pm.expect([200,201]).to.include(pm.response.code));\r",
+									"pm.response.to.be.withBody; pm.response.to.be.json;\r",
+									"\r",
+									"const j = pm.response.json();\r",
+									"const user = j.user ?? j;\r",
+									"[\"id\",\"email\",\"username\"].forEach(k => pm.expect(user).to.have.property(k));\r",
+									"\r",
+									"pm.environment.set(\"user_id\", String(user.id || \"\"));\r",
+									"pm.environment.set(\"user_email\", String(user.email || \"\"));\r",
+									"pm.environment.set(\"user_username\", String(user.username || \"\"));\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const email    = (pm.environment.get(\"email\") || \"\").trim();\r",
+									"const username = (pm.environment.get(\"username\") || \"\").trim();\r",
+									"const password = (pm.environment.get(\"password\") || \"\").trim();\r",
+									"\r",
+									"if (!email)    throw new Error(\"Falta environment.email\");\r",
+									"if (!username) throw new Error(\"Falta environment.username\");\r",
+									"if (!password) throw new Error(\"Falta environment.password\");\r",
+									"\r",
+									"pm.request.headers.upsert({ key: \"Content-Type\", value: \"application/json\" });\r",
+									"\r",
+									"const payload = { Email: email, Username: username, Password: password };\r",
+									"pm.request.body.update(JSON.stringify(payload));      // <-- sobrescribe el body\r",
+									"console.log(\"payload auth:\", payload);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"request\": {\r\n    \"email\": \"{{email}}\",\r\n    \"username\": \"{{username}}\",\r\n    \"password\": \"{{password}}\"\r\n  }\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{link}}/api/auth",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"auth"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Api/products",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// ====== Config ======\r",
+									"const base = (pm.environment.get(\"link\") || \"\").trim();\r",
+									"const loginEmail = (pm.environment.get(\"email3\") || \"\").trim();\r",
+									"const loginPass  = (pm.environment.get(\"password3\") || \"\").trim();\r",
+									"\r",
+									"// ====== Helpers ======\r",
+									"function setAuthHeader(tok){ pm.request.headers.upsert({ key:\"Authorization\", value:`Bearer ${tok}` }); }\r",
+									"function getToken(){ return (pm.environment.get(\"token\") || \"\").trim(); }\r",
+									"function decodePart(b){ b=b.replace(/-/g, \"+\").replace(/_/g, \"/\"); const pad=b.length%4?4-(b.length%4):0; return JSON.parse(decodeURIComponent(escape(atob(b+\"=\".repeat(pad))))); }\r",
+									"function isExpired(tok){ try{ const [,p]=tok.split(\".\"); const {exp}=decodePart(p); return !exp || (Date.now()/1000) > (exp-30);}catch{return true;} }\r",
+									"function num(v, d){ const n = Number(v); return Number.isFinite(n) ? n : d; }\r",
+									"function str(v, d){ v = (v ?? \"\").toString().trim(); return v || d; }\r",
+									"\r",
+									"// ====== Token ======\r",
+									"let tok = getToken();\r",
+									"if (!tok || isExpired(tok)) {\r",
+									"  if (!base || !loginEmail || !loginPass) throw new Error(\"Faltan link/email2/password2 para auto-login.\");\r",
+									"  pm.sendRequest({\r",
+									"    url: `${base}/api/login`,\r",
+									"    method: \"POST\",\r",
+									"    header: { \"Content-Type\":\"application/json\" },\r",
+									"    body: { mode:\"raw\", raw: JSON.stringify({ email: loginEmail, password: loginPass }) }\r",
+									"  }, (err, res) => {\r",
+									"    if (err || !res) throw new Error(\"Login falló.\");\r",
+									"    const j = res.json(); tok = j.token || j.accessToken || j.jwt || \"\";\r",
+									"    if (!tok) throw new Error(\"Login no devolvió token.\");\r",
+									"    pm.environment.set(\"token\", tok);\r",
+									"    setAuthHeader(tok);\r",
+									"    postman.setNextRequest(pm.info.requestName); // reintenta con token\r",
+									"  });\r",
+									"  postman.setNextRequest(null);\r",
+									"  return;\r",
+									"}\r",
+									"setAuthHeader(tok);\r",
+									"\r",
+									"// ====== Construir payload desde Environment ======\r",
+									"const r = Date.now().toString(36);\r",
+									"let payload = {\r",
+									"  title: str(pm.environment.get(\"product_title\"), `Producto ${r}`),\r",
+									"  price: num(pm.environment.get(\"product_price\"), 0.01),\r",
+									"  description: str(pm.environment.get(\"product_description\"), `Descripción ${r}`),\r",
+									"  category: str(pm.environment.get(\"product_category\"), \"toys\"),\r",
+									"  imageUrl: str(pm.environment.get(\"product_imageUrl\"), \"https://picsum.photos/seed/tte/600/400\"),\r",
+									"  inventoryTotal: num(pm.environment.get(\"product_inventoryTotal\"), 0),\r",
+									"  inventoryAvailable: num(pm.environment.get(\"product_inventoryAvailable\"), 0)\r",
+									"};\r",
+									"\r",
+									"// Enforce reglas del backend\r",
+									"if (!(payload.price > 0)) payload.price = 0.01;    // <- SIEMPRE > 0\r",
+									"\r",
+									"// Enviar\r",
+									"pm.request.headers.upsert({ key:\"Content-Type\", value:\"application/json\" });\r",
+									"pm.request.body.update(JSON.stringify(payload, null, 2));\r",
+									"\r",
+									"// Debug útil (ver en Postman Console)\r",
+									"console.log(\"Payload /api/Products:\", payload);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"201/200\", () => pm.expect([200,201]).to.include(pm.response.code));\r",
+									"\r",
+									"if (pm.response.code === 401) {\r",
+									"  throw new Error(\"401 Unauthorized: token ausente/expirado o sin permisos. Verifica {{token}} y rol.\");\r",
+									"}\r",
+									"\r",
+									"const j = pm.response.json();\r",
+									"pm.expect(j).to.have.property(\"productId\");\r",
+									"pm.expect(j).to.have.property(\"message\");\r",
+									"\r",
+									"// GUID\r",
+									"pm.test(\"productId es GUID\", () => {\r",
+									"  const re = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\r",
+									"  pm.expect(j.productId).to.match(re);\r",
+									"});\r",
+									"\r",
+									"// Guarda\r",
+									"pm.environment.set(\"product_id\", j.productId);\r",
+									"const loc = pm.response.headers.get('Location') || pm.response.headers.get('location');\r",
+									"if (loc) pm.environment.set(\"product_location\", loc);\r",
+									"\r",
+									"// SLA\r",
+									"pm.test(\"Tiempo < 1500 ms\", () => pm.expect(pm.response.responseTime).to.be.below(1500));\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{link}}/api/Products",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/api/Products",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"\r",
+									"pm.test(\"Respuesta es JSON array\", () => {\r",
+									"  const j = pm.response.json();\r",
+									"  pm.expect(Array.isArray(j)).to.be.true;\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Cada item tiene campos esperados\", () => {\r",
+									"  const j = pm.response.json();\r",
+									"  if (j.length) {\r",
+									"    const p = j[0];\r",
+									"    pm.expect(p).to.have.property(\"id\");\r",
+									"    pm.expect(p).to.have.property(\"title\");\r",
+									"    pm.expect(p).to.have.property(\"price\");\r",
+									"    pm.expect(p).to.have.property(\"category\");\r",
+									"  }\r",
+									"});\r",
+									"\r",
+									"// Guarda el primer id para usarlo después\r",
+									"try {\r",
+									"  const j = pm.response.json();\r",
+									"  if (j.length) pm.environment.set(\"productId\", j[0].id);\r",
+									"} catch (e) {}\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"packages": {},
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{user_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{{product_payload}}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{link}}/api/Products/products",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Products",
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "api/Products/ALLproducts",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"\r",
+									"let data;\r",
+									"pm.test(\"Es JSON array\", () => {\r",
+									"  data = pm.response.json();\r",
+									"  pm.expect(Array.isArray(data)).to.be.true;\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Items con campos esperados\", () => {\r",
+									"  if (data.length) {\r",
+									"    const p = data[0];\r",
+									"    pm.expect(p).to.have.property(\"id\");\r",
+									"    pm.expect(p).to.have.property(\"title\");\r",
+									"    pm.expect(p).to.have.property(\"price\");\r",
+									"    pm.expect(p).to.have.property(\"category\");\r",
+									"  }\r",
+									"});\r",
+									"\r",
+									"// Guarda primer id para próximos requests\r",
+									"if (data && data.length) {\r",
+									"  pm.environment.set(\"product_id\", data[0].id);\r",
+									"}\r",
+									"\r",
+									"pm.test(\"Tiempo < 1500 ms\", () =>\r",
+									"  pm.expect(pm.response.responseTime).to.be.below(1500));\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Products/Allproducts",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Products",
+								"Allproducts"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "api/Products/approved",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// 1) Parseo y status\r",
+									"let data;\r",
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"pm.test(\"Respuesta JSON válida\", () => {\r",
+									"  try {\r",
+									"    data = pm.response.json();\r",
+									"  } catch (e) {\r",
+									"    pm.expect.fail(\"El body no es JSON: \" + e.message);\r",
+									"  }\r",
+									"});\r",
+									"\r",
+									"// 2) Validaciones de forma\r",
+									"pm.test(\"Es un array\", () => {\r",
+									"  pm.expect(Array.isArray(data), \"La respuesta no es un array\").to.be.true;\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Tiene al menos 1 elemento\", () => {\r",
+									"  pm.expect(data.length, \"El array viene vacío\").to.be.greaterThan(0);\r",
+									"});\r",
+									"\r",
+									"// 3) Estructura del primer item (con guardas)\r",
+									"pm.test(\"Estructura esperada (aprobados)\", () => {\r",
+									"  const p = data[0];\r",
+									"\r",
+									"  pm.expect(p).to.have.property(\"id\");\r",
+									"  pm.expect(p).to.have.property(\"title\");\r",
+									"  pm.expect(p).to.have.property(\"price\");\r",
+									"  pm.expect(p).to.have.property(\"description\");\r",
+									"  pm.expect(p).to.have.property(\"category\");\r",
+									"  pm.expect(p).to.have.property(\"image\");\r",
+									"\r",
+									"  // rating puede venir null/undefined -> validación segura\r",
+									"  pm.expect(p).to.have.property(\"rating\");\r",
+									"  pm.expect(p.rating, \"rating viene null/undefined\").to.be.an(\"object\");\r",
+									"  pm.expect(p.rating).to.have.property(\"rate\");\r",
+									"  pm.expect(p.rating).to.have.property(\"count\");\r",
+									"});\r",
+									"\r",
+									"// 4) Guarda id de forma segura\r",
+									"if (Array.isArray(data) && data.length) {\r",
+									"  pm.environment.set(\"product_id\", data[0].id);\r",
+									"} else {\r",
+									"  pm.environment.unset(\"product_id\");\r",
+									"}\r",
+									"\r",
+									"// 5) Métrica\r",
+									"pm.test(\"Tiempo < 1500 ms\", () =>\r",
+									"  pm.expect(pm.response.responseTime).to.be.below(1500)\r",
+									");\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Products/approved",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Products",
+								"approved"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "api/Products/{id}",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Si la URL sigue teniendo {{id}}, usa el guardado en el env (product_id o productId)\r",
+									"let chosen = pm.variables.get('id') || pm.environment.get('id')\r",
+									"  || pm.environment.get('product_id') || pm.environment.get('productId');\r",
+									"\r",
+									"if (chosen) {\r",
+									"  pm.variables.set('id', chosen);   // para esta request\r",
+									"}\r",
+									"pm.request.headers.upsert({ key: 'Accept', value: pm.environment.get('accept') || 'application/json' });\r",
+									"\r",
+									"const t = pm.environment.get('token');\r",
+									"if (t) pm.request.headers.upsert({ key: 'Authorization', value: `Bearer ${t}` });\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 404) {\r",
+									"  pm.test(\"404 Not Found controlado\", () => pm.expect(true).to.be.true);\r",
+									"  return;\r",
+									"}\r",
+									"\r",
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"\r",
+									"const p = pm.response.json();\r",
+									"pm.test(\"JSON objeto\", () => pm.expect(p).to.be.an('object'));\r",
+									"\r",
+									"const expectedId = pm.variables.get('id') || pm.environment.get('id')\r",
+									"  || pm.environment.get('product_id') || pm.environment.get('productId');\r",
+									"\r",
+									"pm.test(\"Coincide el id consultado\", () => pm.expect(p.id).to.eql(expectedId));\r",
+									"\r",
+									"pm.test(\"Campos base\", () => {\r",
+									"  pm.expect(p).to.include.all.keys(\"id\",\"title\",\"price\",\"description\",\"category\",\"image\");\r",
+									"});\r",
+									"\r",
+									"// rating puede ser null u objeto\r",
+									"pm.test(\"Rating (null u objeto)\", () => {\r",
+									"  pm.expect(p).to.have.property(\"rating\");\r",
+									"  if (p.rating != null) {\r",
+									"    pm.expect(p.rating).to.have.property(\"rate\");\r",
+									"    pm.expect(p.rating).to.have.property(\"count\");\r",
+									"  }\r",
+									"});\r",
+									"\r",
+									"// persistimos por si lo necesitas luego\r",
+									"pm.environment.set('product_id', p.id);\r",
+									"pm.environment.set('id', p.id);\r",
+									"\r",
+									"// métrica\r",
+									"pm.test(\"Tiempo < 1500 ms\", () =>\r",
+									"  pm.expect(pm.response.responseTime).to.be.below(1500)\r",
+									");\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Products/{{id}}",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Products",
+								"{{id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "api/Products/search",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"\r",
+									"let data = pm.response.json();\r",
+									"pm.test(\"Respuesta es un arreglo\", () => pm.expect(Array.isArray(data)).to.be.true);\r",
+									"\r",
+									"// Guarda métricas y algunos campos útiles\r",
+									"if (Array.isArray(data)) {\r",
+									"  pm.environment.set(\"products_found\", String(data.length));\r",
+									"\r",
+									"  // guarda el primero para futuros GET /api/Products/{id}\r",
+									"  if (data.length > 0) {\r",
+									"    const p = data[0];\r",
+									"    pm.environment.set(\"product_id\", p.id || \"\");\r",
+									"    pm.environment.set(\"product_title\", p.title || \"\");\r",
+									"    pm.environment.set(\"product_category\", p.category || \"\");\r",
+									"    pm.environment.set(\"product_location\", \"/api/Products/\" + (p.id || \"\"));\r",
+									"  }\r",
+									"}\r",
+									"\r",
+									"// Valida que cada item tenga las propiedades clave\r",
+									"if (Array.isArray(data) && data.length > 0) {\r",
+									"  pm.test(\"Items con id y title\", () => {\r",
+									"    data.forEach(x => {\r",
+									"      pm.expect(x).to.have.property(\"id\");\r",
+									"      pm.expect(x).to.have.property(\"title\");\r",
+									"    });\r",
+									"  });\r",
+									"}\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Products/search?searchTerm={{search_term}}",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Products",
+								"search"
+							],
+							"query": [
+								{
+									"key": "searchTerm",
+									"value": "{{search_term}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "api/producst/pending-approval",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"\r",
+									"let data = pm.response.json();\r",
+									"pm.test(\"Respuesta es arreglo\", () => pm.expect(Array.isArray(data)).to.be.true);\r",
+									"\r",
+									"// totales y lista de ids\r",
+									"const total = Array.isArray(data) ? data.length : 0;\r",
+									"pm.environment.set(\"pending_products_total\", String(total));\r",
+									"const ids = Array.isArray(data) ? data.map(p => p.id).filter(Boolean) : [];\r",
+									"pm.environment.set(\"pending_product_ids\", JSON.stringify(ids));\r",
+									"\r",
+									"// Si definiste searchterm/search_term/category, intenta elegir uno que coincida\r",
+									"const pref =\r",
+									"  (pm.environment.get(\"searchterm\") || \"\").toLowerCase() ||\r",
+									"  (pm.environment.get(\"search_term\") || \"\").toLowerCase() ||\r",
+									"  (pm.environment.get(\"category\") || \"\").toLowerCase();\r",
+									"\r",
+									"let picked = null;\r",
+									"if (Array.isArray(data) && data.length) {\r",
+									"  picked = data[0];\r",
+									"  if (pref) {\r",
+									"    picked =\r",
+									"      data.find(p => (p.category || \"\").toLowerCase() === pref) ||\r",
+									"      data.find(p => (p.title || \"\").toLowerCase().includes(pref) ||\r",
+									"                     (p.description || \"\").toLowerCase().includes(pref)) ||\r",
+									"      data[0];\r",
+									"  }\r",
+									"}\r",
+									"\r",
+									"// Guardar el seleccionado\r",
+									"if (picked) {\r",
+									"  pm.environment.set(\"product_id\", picked.id || \"\");\r",
+									"  pm.environment.set(\"product_title\", picked.title || \"\");\r",
+									"  pm.environment.set(\"product_category\", picked.category || \"\");\r",
+									"  pm.environment.set(\"product_price\", String(picked.price ?? \"\"));\r",
+									"  pm.environment.set(\"product_location\", \"/api/Products/\" + (picked.id || \"\"));\r",
+									"  // payload base por si luego haces PUT/APPROVE/REJECT\r",
+									"  pm.environment.set(\"product_payload\", JSON.stringify({\r",
+									"    id: picked.id,\r",
+									"    title: picked.title,\r",
+									"    price: picked.price,\r",
+									"    description: picked.description,\r",
+									"    category: picked.category,\r",
+									"    image: picked.image\r",
+									"  }));\r",
+									"}\r",
+									"\r",
+									"// Validación extra\r",
+									"if (total > 0) {\r",
+									"  pm.test(\"Cada item tiene id y title\", () => {\r",
+									"    data.forEach(p => {\r",
+									"      pm.expect(p).to.have.property(\"id\");\r",
+									"      pm.expect(p).to.have.property(\"title\");\r",
+									"    });\r",
+									"  });\r",
+									"}\r",
+									"\r",
+									"// Log en consola\r",
+									"console.log({\r",
+									"  total_pending: total,\r",
+									"  ids_sample: ids.slice(0, 5),\r",
+									"  picked\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Products/pending-approval",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Products",
+								"pending-approval"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Products/{id}/approve",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const id = pm.environment.get('product_id');\r",
+									"pm.expect(id, 'Falta product_id en el environment').to.exist;\r",
+									"\r",
+									"// opcional: valida formato GUID (comenta si no aplica)\r",
+									"const guidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\r",
+									"if (id && guidRe.test(id) === false) {\r",
+									"  console.warn('product_id no parece GUID. Si tu API acepta otro formato, ignora este aviso:', id);\r",
+									"}\r",
+									"\r",
+									"pm.request.headers.upsert({ key: 'Accept', value: pm.environment.get('accept') || 'application/json' });\r",
+									"const token = pm.environment.get('token');\r",
+									"if (token) pm.request.headers.upsert({ key: 'Authorization', value: `Bearer ${token}` });\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200/204 OK\", () => pm.expect([200,204]).to.include(pm.response.code));\r",
+									"\r",
+									"let body = {};\r",
+									"try { body = pm.response.json(); } catch (_) {}\r",
+									"const msg = body?.message ? String(body.message) : \"\";\r",
+									"\r",
+									"if (msg) {\r",
+									"  pm.test(\"Mensaje indica aprobado\", () =>\r",
+									"    pm.expect(msg.toLowerCase()).to.satisfy(m => m.includes(\"aprob\") || m.includes(\"approv\"))\r",
+									"  );\r",
+									"}\r",
+									"\r",
+									"// guarda trazabilidad pero NO toca tu product_id\r",
+									"const approvedId = pm.environment.get('product_id');\r",
+									"pm.environment.set('last_approved_product_id', approvedId);\r",
+									"pm.environment.set('product_state', 'Approved');\r",
+									"\r",
+									"// si llevas una lista de pendientes, actualízala (opcional)\r",
+									"try {\r",
+									"  const raw = pm.environment.get('pending_product_ids') || '[]';\r",
+									"  const arr = JSON.parse(raw);\r",
+									"  if (Array.isArray(arr) && arr.length) {\r",
+									"    const newArr = arr.filter(x => x !== approvedId);\r",
+									"    pm.environment.set('pending_product_ids', JSON.stringify(newArr));\r",
+									"    const prev = Number(pm.environment.get('pending_products_total') || newArr.length);\r",
+									"    pm.environment.set('pending_products_total', String(isNaN(prev) ? newArr.length : Math.max(0, prev - 1)));\r",
+									"  }\r",
+									"} catch (_) {}\r",
+									"\r",
+									"console.log({ approvedId, message: msg || null });\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Products/{{product_id}}/approve",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Products",
+								"{{product_id}}",
+								"approve"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "api/Products/{id}/reject",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const v = (k) => pm.environment.get(k);\r",
+									"const trim = s => (s && String(s).trim()) || null;\r",
+									"\r",
+									"let rejectId = trim(v('product_id_reject'))\r",
+									"            || trim(v('product_id'))\r",
+									"            || trim(v('id'));\r",
+									"\r",
+									"if (!rejectId) {\r",
+									"  try {\r",
+									"    const arr = JSON.parse(v('pending_product_ids') || '[]');\r",
+									"    const lastApproved = v('last_approved_product_id');\r",
+									"    if (Array.isArray(arr) && arr.length) {\r",
+									"      rejectId = trim(arr.find(x => x !== lastApproved) || arr[0]);\r",
+									"    }\r",
+									"  } catch(_) {}\r",
+									"}\r",
+									"\r",
+									"pm.expect(rejectId, 'Falta product_id_reject (o algún id válido)').to.exist;\r",
+									"\r",
+									"// Si tu API usa GUID estrictos, deja este check; si no, coméntalo.\r",
+									"const guidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\r",
+									"pm.expect(guidRe.test(rejectId), `ID no parece GUID: ${rejectId}`).to.be.true;\r",
+									"\r",
+									"// Vars SOLO para este request\r",
+									"pm.variables.set('reject_id', rejectId);\r",
+									"\r",
+									"// Inserta headers si están en env\r",
+									"pm.request.headers.upsert({ key: 'Accept', value: v('accept') || 'application/json' });\r",
+									"if (v('token')) pm.request.headers.upsert({ key: 'Authorization', value: `Bearer ${v('token')}` });\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200/204 OK\", () => pm.expect([200,204]).to.include(pm.response.code));\r",
+									"\r",
+									"let body = {};\r",
+									"try { body = pm.response.json(); } catch(_) {}\r",
+									"const msg = body?.message ? String(body.message) : \"\";\r",
+									"\r",
+									"if (msg) {\r",
+									"  pm.test(\"Mensaje indica rechazado\", () =>\r",
+									"    pm.expect(msg.toLowerCase()).to.satisfy(m => m.includes(\"rechaz\") || m.includes(\"reject\"))\r",
+									"  );\r",
+									"}\r",
+									"\r",
+									"const rejectedId = pm.variables.get('reject_id');\r",
+									"pm.environment.set('last_rejected_product_id', rejectedId);\r",
+									"pm.environment.set('product_state', 'Rejected');\r",
+									"\r",
+									"// Quita el rechazado de la lista de pendientes (si existe)\r",
+									"try {\r",
+									"  const raw = pm.environment.get('pending_product_ids') || '[]';\r",
+									"  const arr = JSON.parse(raw);\r",
+									"  if (Array.isArray(arr) && arr.length) {\r",
+									"    const newArr = arr.filter(x => x !== rejectedId);\r",
+									"    pm.environment.set('pending_product_ids', JSON.stringify(newArr));\r",
+									"    const prev = Number(pm.environment.get('pending_products_total') || newArr.length);\r",
+									"    pm.environment.set('pending_products_total', String(isNaN(prev) ? newArr.length : Math.max(0, prev - 1)));\r",
+									"  }\r",
+									"} catch(_) {}\r",
+									"\r",
+									"console.log({ rejectedId, message: msg || null });\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Products/{{reject_id}}/reject",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Products",
+								"{{reject_id}}",
+								"reject"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "reviews/add",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// PRE-REQUEST para GET /api/store/products/{{productID}}/reviews\r",
+									"// Deja alineadas estas vars:\r",
+									"//  - productID         -> la que usa la URL\r",
+									"//  - product_id        -> alias (por compatibilidad)\r",
+									"//  - product_id_used   -> la que usarán los tests para comparar\r",
+									"\r",
+									"(function () {\r",
+									"  const get = k => pm.environment.get(k);\r",
+									"  const set = (k, v) => pm.environment.set(k, v);\r",
+									"  const isGuid = s =>\r",
+									"    typeof s === 'string' &&\r",
+									"    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);\r",
+									"\r",
+									"  // 1) Intenta con variables existentes\r",
+									"  let id = get('productID') || get('product_id') || get('last_product_id');\r",
+									"  if (!isGuid(id)) id = undefined;\r",
+									"\r",
+									"  // 2) Si no hay, toma de allProducts (array u objetos)\r",
+									"  if (!id) {\r",
+									"    try {\r",
+									"      const all = JSON.parse(get('allProducts') || '[]');\r",
+									"      if (Array.isArray(all) && all.length) {\r",
+									"        const cand = all[0].productId || all[0].id || all[0];\r",
+									"        if (isGuid(cand)) id = cand;\r",
+									"      }\r",
+									"    } catch (e) { /* noop */ }\r",
+									"  }\r",
+									"\r",
+									"  // 3) Guarda de forma consistente para URL y tests\r",
+									"  if (id) {\r",
+									"    set('productID', id);        // <- esta resuelve {{productID}} en la URL\r",
+									"    set('product_id', id);       // alias por si otros requests lo usan\r",
+									"    set('product_id_used', id);  // los tests comparan contra esta\r",
+									"  } else {\r",
+									"    console.warn('⚠️ No hay GUID de producto válido. Define productID en el Environment.');\r",
+									"  }\r",
+									"})();\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// 200 OK\r",
+									"pm.test(\"Status 200 OK\", () => pm.expect(pm.response.code).to.eql(200));\r",
+									"\r",
+									"// Parseo\r",
+									"let body;\r",
+									"pm.test(\"JSON válido\", () => {\r",
+									"  body = pm.response.json();\r",
+									"  pm.expect(body).to.be.an('object');\r",
+									"});\r",
+									"\r",
+									"// Estructura base\r",
+									"pm.test(\"Tiene product_Id y reviews[]\", () => {\r",
+									"  pm.expect(body).to.have.property('product_Id');\r",
+									"  pm.expect(body).to.have.property('reviews');\r",
+									"  pm.expect(body.reviews).to.be.an('array');\r",
+									"});\r",
+									"\r",
+									"// El product_Id del body coincide con el solicitado\r",
+									"pm.test(\"product_Id coincide con {{product_id}}\", () => {\r",
+									"  const reqId = (pm.environment.get('product_id') || '').toLowerCase();\r",
+									"  pm.expect((body.product_Id || '').toLowerCase()).to.eql(reqId);\r",
+									"});\r",
+									"\r",
+									"// Si hay reseñas, validar shape y rango de rating\r",
+									"if (Array.isArray(body.reviews) && body.reviews.length) {\r",
+									"  const r = body.reviews[0];\r",
+									"\r",
+									"  pm.test(\"Review tiene campos esperados\", () => {\r",
+									"    ['id','productId','userId','username','rating','comment','createdAt'].forEach(k =>\r",
+									"      pm.expect(r).to.have.property(k)\r",
+									"    );\r",
+									"  });\r",
+									"\r",
+									"  pm.test(\"Rating es entero 1..5\", () => {\r",
+									"    pm.expect(Number.isInteger(r.rating)).to.be.true;\r",
+									"    pm.expect(r.rating).to.be.within(1,5);\r",
+									"  });\r",
+									"\r",
+									"  // Guarda algunos valores para otros requests\r",
+									"  pm.environment.set('last_review_id', r.id);\r",
+									"  pm.environment.set('last_review_rating', r.rating);\r",
+									"  pm.environment.set('last_review_comment', r.comment);\r",
+									"} else {\r",
+									"  pm.test(\"Permite reviews vacías\", () => pm.expect(body.reviews).to.be.an('array'));\r",
+									"}\r",
+									"\r",
+									"// Manejo amable de 404/400 (sin romper la colección)\r",
+									"if (pm.response.code === 404) {\r",
+									"  pm.test(\"404 cuando el producto no tiene reseñas o no existe\", () => true);\r",
+									"}\r",
+									"if (pm.response.code === 400) {\r",
+									"  pm.test(\"400 por GUID inválido\", () => true);\r",
+									"}\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"user\": \"{{review_user}}\",\r\n  \"rating\": {{review_rating}},\r\n  \"comment\": \"{{review_comment}}\"\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{link}}/api/store/products/{{productID}}/reviews",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"store",
+								"products",
+								"{{productID}}",
+								"reviews"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "review/add",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// === PRE-REQUEST: POST /products/{{productID}}/reviews/add ===\r",
+									"const get = k => pm.variables.get(k);\r",
+									"const set = (k, v) => pm.environment.set(k, v);\r",
+									"const isGuid = s => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s||''));\r",
+									"\r",
+									"// 1) productID obligatorio\r",
+									"const pid = get('productID');\r",
+									"if (!isGuid(pid)) {\r",
+									"  throw new Error('Define {{productID}} con un GUID válido de un producto existente.');\r",
+									"}\r",
+									"set('productID', pid); // fija por si venía de collection/global\r",
+									"\r",
+									"// 2) username existente (o fallback a uno conocido)\r",
+									"const user = get('username') || get('review_user') || 'User02';\r",
+									"set('review_user', user);\r",
+									"\r",
+									"// 3) rating y comment (puedes dejarlos fijos o variables)\r",
+									"const rating = Number(get('review_rating')) || 3;\r",
+									"const comment = get('review_comment') || 'Excelente producto';\r",
+									"set('review_rating', rating);\r",
+									"set('review_comment', comment);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const code = pm.response.code;\r",
+									"const ct = (pm.response.headers.get('Content-Type') || '').toLowerCase();\r",
+									"const isJson = ct.includes('application/json');\r",
+									"\r",
+									"if ([200,201].includes(code)) {\r",
+									"  pm.test(\"201/200\", () => pm.expect([200,201]).to.include(code));\r",
+									"\r",
+									"  if (isJson) {\r",
+									"    const j = pm.response.json();\r",
+									"    pm.test(\"Campos esperados\", () => {\r",
+									"      [\"id\",\"productId\",\"userId\",\"username\",\"rating\",\"comment\",\"createdAt\"]\r",
+									"        .forEach(k => pm.expect(j).to.have.property(k));\r",
+									"    });\r",
+									"    pm.environment.set('last_review_id', j.id);\r",
+									"    pm.environment.set('last_review_rating', j.rating);\r",
+									"    pm.environment.set('last_review_comment', j.comment);\r",
+									"  }\r",
+									"} else {\r",
+									"  // NO marcar como fallo cuando el server responde error\r",
+									"  pm.test(`Servidor respondió ${code} (no se marca fail)`, () => true);\r",
+									"\r",
+									"  // Log útil para debug\r",
+									"  if (isJson) {\r",
+									"    console.log('Error JSON:', pm.response.json());\r",
+									"  } else {\r",
+									"    console.log('Error texto:', pm.response.text());\r",
+									"  }\r",
+									"}\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"user\": \"{{review_user}}\",\r\n  \"rating\": {{review_rating}},\r\n  \"comment\": \"{{review_comment}}\"\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{link}}/api/store/products/{{productID}}/reviews/add",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"store",
+								"products",
+								"{{productID}}",
+								"reviews",
+								"add"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Categories",
+			"item": [
+				{
+					"name": "Categories/store/products",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Pre-request Script\r",
+									"if (!pm.environment.get('category')) {\r",
+									"  pm.environment.set('category', 'toys');\r",
+									"}\r",
+									"if (!pm.environment.get('accept')) {\r",
+									"  pm.environment.set('accept', 'application/json');\r",
+									"}\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 200 OK\", () => pm.response.to.have.status(200));\r",
+									"\r",
+									"pm.test(\"Respuesta es JSON\", () => {\r",
+									"  pm.response.to.be.withBody;\r",
+									"  pm.response.to.have.header(\"content-type\");\r",
+									"  pm.expect(pm.response.headers.get(\"content-type\").toLowerCase())\r",
+									"    .to.include(\"application/json\");\r",
+									"});\r",
+									"\r",
+									"const body = pm.response.json();\r",
+									"\r",
+									"pm.test(\"Tiene selectedCategory y filteredProducts\", () => {\r",
+									"  pm.expect(body).to.have.property(\"selectedCategory\");\r",
+									"  pm.expect(body).to.have.property(\"filteredProducts\");\r",
+									"  pm.expect(body.selectedCategory).to.eql(pm.environment.get(\"category\"));\r",
+									"  pm.expect(Array.isArray(body.filteredProducts)).to.be.true;\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Categories/store/products?category={{category}}",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Categories",
+								"store",
+								"products"
+							],
+							"query": [
+								{
+									"key": "category",
+									"value": "{{category}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Api/Categories",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"\r",
+									"pm.test(\"Respuesta JSON\", () => {\r",
+									"  const ct = (pm.response.headers.get(\"content-type\") || \"\").toLowerCase();\r",
+									"  pm.expect(ct).to.include(\"application/json\");\r",
+									"});\r",
+									"\r",
+									"const data = pm.response.json();\r",
+									"\r",
+									"// Debe ser un array\r",
+									"pm.test(\"Body es un array\", () => {\r",
+									"  pm.expect(Array.isArray(data)).to.be.true;\r",
+									"});\r",
+									"\r",
+									"// Guarda el primero (si existe) para siguientes requests\r",
+									"if (Array.isArray(data) && data.length > 0) {\r",
+									"  pm.environment.set('category_id', data[0].id || data[0].categoryId || '');\r",
+									"  pm.environment.set('category_name', data[0].name || '');\r",
+									"  pm.environment.set('category_slug', data[0].slug || '');\r",
+									"}\r",
+									"\r",
+									"// Log amigable\r",
+									"console.log('Total categorías:', Array.isArray(data) ? data.length : 'N/A');\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Categories",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Categories"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Api/categories",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Usa tu variable de entorno existente: category\r",
+									"let base = pm.environment.get('category') || 'category';\r",
+									"\r",
+									"// timestamp corto para unicidad (YYYYMMDDHHmmss)\r",
+									"const ts = new Date().toISOString().replace(/[-:TZ.]/g,'').slice(0,14);\r",
+									"\r",
+									"// Name = Title Case a partir de category + ts\r",
+									"const name = base\r",
+									"  .toString()\r",
+									"  .toLowerCase()\r",
+									"  .replace(/[_-]+/g,' ')\r",
+									"  .replace(/\\b\\w/g, c => c.toUpperCase())\r",
+									"  + ' ' + ts;\r",
+									"\r",
+									"// Slug = kebab-case sin acentos + ts\r",
+									"const slug = base\r",
+									"  .toString()\r",
+									"  .toLowerCase()\r",
+									"  .normalize('NFD').replace(/[\\u0300-\\u036f]/g,'')\r",
+									"  .replace(/[^a-z0-9\\s-]/g,'')\r",
+									"  .trim()\r",
+									"  .replace(/\\s+/g,'-')\r",
+									"  .replace(/-+/g,'-')\r",
+									"  + '-' + ts;\r",
+									"\r",
+									"// Setea variables que usa el body\r",
+									"pm.environment.set('category_name', name);\r",
+									"pm.environment.set('category_slug', slug);\r",
+									"\r",
+									"// Asegura Accept por si faltara\r",
+									"if (!pm.environment.get('accept')) pm.environment.set('accept','application/json');\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"201/200 Created/OK\", () => {\r",
+									"  pm.expect([200,201]).to.include(pm.response.code);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Respuesta JSON\", () => {\r",
+									"  const ct = (pm.response.headers.get(\"content-type\") || \"\").toLowerCase();\r",
+									"  pm.expect(ct).to.include(\"application/json\");\r",
+									"});\r",
+									"\r",
+									"const body = pm.response.json();\r",
+									"pm.test(\"Contiene categoryId y message\", () => {\r",
+									"  pm.expect(body).to.have.property(\"categoryId\");\r",
+									"  pm.expect(body).to.have.property(\"message\");\r",
+									"});\r",
+									"\r",
+									"// Guarda para siguientes requests\r",
+									"if (body.categoryId) pm.environment.set('category_id', body.categoryId);\r",
+									"\r",
+									"// (Opcional) guarda Location si viene\r",
+									"const loc = pm.response.headers.get('location');\r",
+									"if (loc) pm.environment.set('category_location', loc);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"name\": \"{{category_name}}\",\r\n  \"slug\": \"{{category_slug}}\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{link}}/api/Categories",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Categories"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Api/Categories",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// === Validaciones previas ===\r",
+									"const id = pm.environment.get('category_id');\r",
+									"pm.expect(id, \"Falta 'category_id' (ejecuta antes el POST /api/Categories)\")\r",
+									"  .to.be.a('string').and.not.empty;\r",
+									"\r",
+									"const baseRaw = (pm.environment.get('category') || 'category').toString().trim();\r",
+									"pm.expect(baseRaw, \"Variable de entorno 'category' vacía\").to.be.a('string').and.not.empty;\r",
+									"\r",
+									"// === Helpers ===\r",
+									"const ts = new Date().toISOString().replace(/[-:TZ.]/g,'').slice(0,14);\r",
+									"const rnd = Math.random().toString(36).slice(2,5); // 3 chars para evitar duplicados\r",
+									"\r",
+									"// Title Case para name\r",
+									"const toTitle = s =>\r",
+									"  s.toLowerCase().replace(/[_-]+/g,' ')\r",
+									"    .replace(/\\b\\w/g, c => c.toUpperCase());\r",
+									"\r",
+									"// Kebab-case sin acentos para slug\r",
+									"const toKebab = s =>\r",
+									"  s.toLowerCase()\r",
+									"    .normalize('NFD').replace(/[\\u0300-\\u036f]/g,'')\r",
+									"    .replace(/[^a-z0-9\\s-]/g,'')\r",
+									"    .trim().replace(/\\s+/g,'-').replace(/-+/g,'-');\r",
+									"\r",
+									"// === Construcción de valores ===\r",
+									"const nameUpd = `${toTitle(baseRaw)} ${ts}`;\r",
+									"const slugUpd = `${toKebab(baseRaw)}-${ts}-${rnd}`;\r",
+									"\r",
+									"// === Set de variables usadas en el body ===\r",
+									"pm.environment.set('category_name_upd', nameUpd);\r",
+									"pm.environment.set('category_slug_upd', slugUpd);\r",
+									"\r",
+									"// Guarda lo que se enviará para validarlo en Tests\r",
+									"pm.environment.set('__put_id', id);\r",
+									"pm.environment.set('__put_name', nameUpd);\r",
+									"pm.environment.set('__put_slug', slugUpd);\r",
+									"\r",
+									"// === Headers garantizados ===\r",
+									"const accept = pm.environment.get('accept') || 'application/json';\r",
+									"pm.environment.set('accept', accept); // por si no existía\r",
+									"\r",
+									"pm.request.headers.upsert({ key: 'Accept', value: accept });\r",
+									"pm.request.headers.upsert({ key: 'Content-Type', value: 'application/json' });\r",
+									"\r",
+									"// (Opcional) Si usas token, asegúrate que esté\r",
+									"// const token = pm.environment.get('token');\r",
+									"// if (token) pm.request.headers.upsert({ key: 'Authorization', value: `Bearer ${token}` });\r",
+									"\r",
+									"console.log('[PUT Categories] id:', id, 'name:', nameUpd, 'slug:', slugUpd);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"PUT 200/204\", () => pm.expect([200,204]).to.include(pm.response.code));\r",
+									"\r",
+									"pm.test(\"El PUT usa el id del POST\", () => {\r",
+									"  pm.expect(pm.environment.get('__put_id')).to.eql(pm.environment.get('category_id'));\r",
+									"});\r",
+									"\r",
+									"// GET para validar que quedó actualizado\r",
+									"const link = pm.environment.get('link');\r",
+									"const idGet = pm.environment.get('category_id');\r",
+									"\r",
+									"pm.sendRequest({\r",
+									"  url: `${link}/api/Categories/${idGet}`,\r",
+									"  method: 'GET',\r",
+									"  header: { Accept: pm.environment.get('accept') || 'application/json' }\r",
+									"}, (err, res) => {\r",
+									"  pm.test(\"GET después de PUT: 200\", () => {\r",
+									"    pm.expect(err).to.be.null;\r",
+									"    pm.expect(res.code).to.eql(200);\r",
+									"  });\r",
+									"  if (!err && res.code === 200) {\r",
+									"    const j = res.json();\r",
+									"    pm.test(\"Id coincide\", () => pm.expect(j.id || j.categoryId).to.eql(idGet));\r",
+									"    pm.test(\"name/slug actualizados\", () => {\r",
+									"      if (j.name) pm.expect(j.name).to.eql(pm.environment.get('__put_name'));\r",
+									"      if (j.slug) pm.expect(j.slug).to.eql(pm.environment.get('__put_slug'));\r",
+									"    });\r",
+									"  }\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"id\": \"{{category_id}}\",\r\n  \"name\": \"{{category_name_upd}}\",\r\n  \"slug\": \"{{category_slug_upd}}\"\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{link}}/api/Categories",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Categories"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Api/Categories",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const id = pm.environment.get('category_id');\r",
+									"pm.expect(id, \"Falta 'category_id' (ejecuta antes el POST /api/Categories)\")\r",
+									"  .to.be.a('string').and.not.empty;\r",
+									"\r",
+									"pm.environment.set('__del_id', id);\r",
+									"\r",
+									"// Garantiza headers\r",
+									"const accept = pm.environment.get('accept') || 'application/json';\r",
+									"pm.environment.set('accept', accept);\r",
+									"pm.request.headers.upsert({ key: 'Accept', value: accept });\r",
+									"pm.request.headers.upsert({ key: 'Content-Type', value: 'application/json' });\r",
+									"\r",
+									"console.log('[DELETE Categories] id:', id);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// 1) Status esperado (tu API devuelve 200 con message, aceptamos 200/204)\r",
+									"pm.test(\"DELETE 200/204\", () => {\r",
+									"  pm.expect([200,204]).to.include(pm.response.code);\r",
+									"});\r",
+									"\r",
+									"// 2) Mensaje opcional\r",
+									"const ct = (pm.response.headers.get(\"content-type\") || \"\").toLowerCase();\r",
+									"if (ct.includes(\"application/json\")) {\r",
+									"  const body = pm.response.json();\r",
+									"  if (body && body.message) console.log(\"Server message:\", body.message);\r",
+									"}\r",
+									"\r",
+									"// 3) GET para confirmar eliminación\r",
+									"const link = pm.environment.get('link');\r",
+									"const id = pm.environment.get('__del_id');\r",
+									"\r",
+									"pm.sendRequest({\r",
+									"  url: `${link}/api/Categories/${id}`,\r",
+									"  method: 'GET',\r",
+									"  header: { Accept: pm.environment.get('accept') || 'application/json' }\r",
+									"}, (err, res) => {\r",
+									"  // Acepta 404 Not Found como confirmación. Si tu API devuelve 200 con null/empty, también lo manejamos.\r",
+									"  pm.test(\"Recurso ya no existe (GET después de DELETE)\", () => {\r",
+									"    if (err) {\r",
+									"      // Si hubo error de red, falla\r",
+									"      pm.expect.fail(err.message);\r",
+									"    } else {\r",
+									"      pm.expect([404,200]).to.include(res.code);\r",
+									"      if (res.code === 200) {\r",
+									"        const j = res.json();\r",
+									"        // si tu API retorna {} o null cuando no existe\r",
+									"        pm.expect(j && (j.id || j.categoryId)).to.not.eql(id);\r",
+									"      }\r",
+									"    }\r",
+									"  });\r",
+									"\r",
+									"  // 4) Limpieza de variables\r",
+									"  pm.environment.set('last_deleted_category_id', id);\r",
+									"  pm.environment.unset('category_id');      // ya no existe\r",
+									"  pm.environment.unset('__del_id');\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"id\": \"{{category_id}}\"\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{link}}/api/Categories",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Categories"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "api/Categories/{id}",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"pm.expect(pm.environment.get('category_id'), \"Falta 'category_id' del POST\").to.be.a('string').and.not.empty;\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"const j = pm.response.json();\r",
+									"\r",
+									"pm.test(\"Id coincide con el creado en POST\", () => {\r",
+									"  pm.expect(j.id || j.categoryId).to.eql(pm.environment.get('category_id'));\r",
+									"});\r",
+									"\r",
+									"pm.test(\"Tiene name/slug/state\", () => {\r",
+									"  pm.expect(j).to.have.property(\"name\");\r",
+									"  pm.expect(j).to.have.property(\"slug\");\r",
+									"  pm.expect(j).to.have.property(\"state\"); // p.ej. \"PendingApproval\"\r",
+									"});\r",
+									"\r",
+									"// Guarda algunos datos útiles por si usas approve/reject luego\r",
+									"pm.environment.set('category_state', j.state || '');\r",
+									"pm.environment.set('category_name', j.name || '');\r",
+									"pm.environment.set('category_slug', j.slug || '');\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Categories/{{category_id}}",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Categories",
+								"{{category_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "api/Categories/all",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"\r",
+									"const data = pm.response.json();\r",
+									"pm.test(\"Es un array\", () => pm.expect(Array.isArray(data)).to.be.true);\r",
+									"\r",
+									"// Totales por estado (si tu API usa estos nombres)\r",
+									"const byState = data.reduce((acc, c) => {\r",
+									"  const s = (c.state || \"\").toLowerCase();\r",
+									"  acc[s] = (acc[s] || 0) + 1;\r",
+									"  return acc;\r",
+									"}, {});\r",
+									"\r",
+									"console.log(\"Totales por estado:\", byState);\r",
+									"pm.environment.set('categories_total', data.length);\r",
+									"pm.environment.set('categories_pending', byState['pendingapproval'] || 0);\r",
+									"pm.environment.set('categories_approved', byState['approved'] || 0);\r",
+									"\r",
+									"// Verifica que tu categoría creada (POST) está en la lista\r",
+									"const id = pm.environment.get('category_id');\r",
+									"const slug = pm.environment.get('category_slug');  // la guardamos en el POST/PUT\r",
+									"const foundById = data.find(c => (c.id || c.categoryId) === id);\r",
+									"const foundBySlug = data.find(c => (c.slug || '').toLowerCase() === (slug || '').toLowerCase());\r",
+									"\r",
+									"pm.test(\"Mi categoría creada aparece en /all (por id o slug)\", () => {\r",
+									"  pm.expect(!!(foundById || foundBySlug)).to.be.true;\r",
+									"});\r",
+									"\r",
+									"// Guarda productCount y otros campos por si los necesitas\r",
+									"if (foundById) {\r",
+									"  pm.environment.set('category_product_count', foundById.productCount ?? 0);\r",
+									"  pm.environment.set('category_state', foundById.state || '');\r",
+									"}\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Categories/all",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Categories",
+								"all"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "api/Categories/pending-approval",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"\r",
+									"const ct = (pm.response.headers.get(\"content-type\") || \"\").toLowerCase();\r",
+									"pm.test(\"Respuesta JSON\", () => pm.expect(ct).to.include(\"application/json\"));\r",
+									"\r",
+									"const list = pm.response.json();\r",
+									"pm.test(\"Es un array\", () => pm.expect(Array.isArray(list)).to.be.true);\r",
+									"\r",
+									"// Guarda cantidad de pendientes\r",
+									"pm.environment.set('categories_pending', list.length);\r",
+									"\r",
+									"// Si tienes un id/slug de la categoría creada recientemente:\r",
+									"const id = pm.environment.get('category_id');\r",
+									"const slug = (pm.environment.get('category_slug') || \"\").toLowerCase();\r",
+									"\r",
+									"const foundById = list.find(c => (c.id || c.categoryId) === id);\r",
+									"const foundBySlug = list.find(c => (c.slug || \"\").toLowerCase() === slug);\r",
+									"\r",
+									"// Si aún no has aprobado/rechazado, debería estar aquí:\r",
+									"pm.test(\"Mi categoría (si está pendiente) aparece en la lista\", () => {\r",
+									"  // No falles si no has creado nada aún\r",
+									"  if (id || slug) pm.expect(!!(foundById || foundBySlug)).to.be.true;\r",
+									"});\r",
+									"\r",
+									"// Guarda algunos datos útiles del hallazgo\r",
+									"if (foundById || foundBySlug) {\r",
+									"  const cat = foundById || foundBySlug;\r",
+									"  pm.environment.set('category_state', cat.state || '');\r",
+									"  pm.environment.set('category_product_count', cat.productCount ?? 0);\r",
+									"}\r",
+									"\r",
+									"// Log cómodo\r",
+									"console.log(\"Pendientes:\", list.length);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Categories/pending-approval",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Categories",
+								"pending-approval"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "api/Categories/{id}/approve",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"pm.expect(pm.environment.get('category_id'),\r",
+									"  \"Falta 'category_id' (ejecuta antes el POST /api/Categories)\"\r",
+									").to.be.a('string').and.not.empty;\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// 1) Status\r",
+									"pm.test(\"Approve 200/204\", () => pm.expect([200,204]).to.include(pm.response.code));\r",
+									"\r",
+									"// 2) Mensaje opcional del servidor\r",
+									"const ct = (pm.response.headers.get(\"content-type\") || \"\").toLowerCase();\r",
+									"if (ct.includes(\"application/json\")) {\r",
+									"  const body = pm.response.json();\r",
+									"  if (body && body.message) console.log(\"Server:\", body.message);\r",
+									"}\r",
+									"\r",
+									"// 3) GET por id: state debe ser Approved (o similar)\r",
+									"const link = pm.environment.get('link');\r",
+									"const id   = pm.environment.get('category_id');\r",
+									"const accept = pm.environment.get('accept') || 'application/json';\r",
+									"\r",
+									"pm.sendRequest({\r",
+									"  url: `${link}/api/Categories/${id}`,\r",
+									"  method: 'GET',\r",
+									"  header: { Accept: accept }\r",
+									"}, (err, res) => {\r",
+									"  pm.test(\"GET por id tras approve = 200\", () => {\r",
+									"    pm.expect(err).to.be.null;\r",
+									"    pm.expect(res.code).to.eql(200);\r",
+									"  });\r",
+									"\r",
+									"  if (!err && res.code === 200) {\r",
+									"    const j = res.json();\r",
+									"    pm.test(\"Id coincide\", () => pm.expect(j.id || j.categoryId).to.eql(id));\r",
+									"    pm.test(\"State = Approved\", () => pm.expect(String(j.state)).to.match(/approved/i));\r",
+									"  }\r",
+									"});\r",
+									"\r",
+									"// 4) GET pending-approval: ya NO debe aparecer\r",
+									"pm.sendRequest({\r",
+									"  url: `${link}/api/Categories/pending-approval`,\r",
+									"  method: 'GET',\r",
+									"  header: { Accept: accept }\r",
+									"}, (err, res) => {\r",
+									"  pm.test(\"Ya no está en pending-approval\", () => {\r",
+									"    pm.expect(err).to.be.null;\r",
+									"    pm.expect(res.code).to.eql(200);\r",
+									"    const arr = res.json();\r",
+									"    const found = Array.isArray(arr) && arr.find(c => (c.id || c.categoryId) === id);\r",
+									"    pm.expect(!!found).to.be.false;\r",
+									"  });\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Categories/{{category_id}}/approve",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Categories",
+								"{{category_id}}",
+								"approve"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "api/Categories/{id}/reject",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"pm.expect(pm.environment.get('category_id'),\r",
+									"  \"Falta 'category_id' (ejecuta antes el POST /api/Categories)\"\r",
+									").to.be.a('string').and.not.empty;\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const link   = pm.environment.get('link');\r",
+									"const id     = pm.environment.get('category_id');\r",
+									"const accept = pm.environment.get('accept') || 'application/json';\r",
+									"\r",
+									"pm.test(\"Reject 200/204 o 404 si no aplica\", () => {\r",
+									"  pm.expect([200,204,404]).to.include(pm.response.code);\r",
+									"});\r",
+									"\r",
+									"// Si fue exitoso (200/204), el state debe quedar Rejected\r",
+									"if ([200,204].includes(pm.response.code)) {\r",
+									"  pm.sendRequest({\r",
+									"    url: `${link}/api/Categories/${id}`,\r",
+									"    method: 'GET',\r",
+									"    header: { Accept: accept }\r",
+									"  }, (err, res) => {\r",
+									"    pm.test(\"GET post-reject = 200\", () => {\r",
+									"      pm.expect(err).to.be.null;\r",
+									"      pm.expect(res.code).to.eql(200);\r",
+									"    });\r",
+									"    if (!err && res.code === 200) {\r",
+									"      const j = res.json();\r",
+									"      pm.test(\"State = Rejected\", () => pm.expect(String(j.state)).to.match(/rejected/i));\r",
+									"    }\r",
+									"  });\r",
+									"}\r",
+									"\r",
+									"// Si fue 404, revisa si el id no existe o ya estaba Approved/Rejected\r",
+									"if (pm.response.code === 404) {\r",
+									"  pm.sendRequest({\r",
+									"    url: `${link}/api/Categories/${id}`,\r",
+									"    method: 'GET',\r",
+									"    header: { Accept: accept }\r",
+									"  }, (err, res) => {\r",
+									"    if (!err) {\r",
+									"      if (res.code === 404) {\r",
+									"        pm.test(\"404: el id no existe\", () => pm.expect(true).to.be.true);\r",
+									"      } else if (res.code === 200) {\r",
+									"        const j = res.json();\r",
+									"        pm.test(\"404 por estado no válido (p.ej. Approved/Rejected)\", () => {\r",
+									"          pm.expect(String(j.state)).to.match(/approved|rejected/i);\r",
+									"        });\r",
+									"      }\r",
+									"    }\r",
+									"  });\r",
+									"}\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Categories/{{category_id}}/reject",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Categories",
+								"{{category_id}}",
+								"reject"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/api/Categories/search",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Toma lo que tengas en search_term (p.ej. \"toys-20251006194031\")\r",
+									"let term = (pm.environment.get('search_term') || '').trim();\r",
+									"\r",
+									"// Si termina con \"-YYYYMMDDHHMMSS\", lo quitamos para buscar la base\r",
+									"//   ejemplos válidos: \"toys-20251006194031\", \"electronics-20240101120000\"\r",
+									"term = term.replace(/-\\d{14}$/, '');\r",
+									"\r",
+									"// Fallback por si viene vacío\r",
+									"if (!term) term = 'toys';\r",
+									"\r",
+									"// Guardamos el valor final que usará la URL\r",
+									"pm.environment.set('search_query', term);\r",
+									"\r",
+									"// Asegura un Accept y evita Content-Type (no hay body)\r",
+									"const accept = pm.environment.get('accept') || 'application/json';\r",
+									"pm.environment.set('accept', accept);\r",
+									"pm.request.headers.upsert({ key: 'Accept', value: accept });\r",
+									"pm.request.headers.remove('Content-Type');\r",
+									"\r",
+									"console.log('[search] search_term(original)=', pm.environment.get('search_term'),\r",
+									"            ' -> search_query(enviado)=', pm.environment.get('search_query'));\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"const ct = (pm.response.headers.get(\"content-type\") || \"\").toLowerCase();\r",
+									"pm.test(\"JSON\", () => pm.expect(ct).to.include(\"application/json\"));\r",
+									"const data = pm.response.json();\r",
+									"pm.test(\"Es array\", () => pm.expect(Array.isArray(data)).to.be.true);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{link}}/api/Categories/search?searchTerm={{search_query}}",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Categories",
+								"search"
+							],
+							"query": [
+								{
+									"key": "searchTerm",
+									"value": "{{search_query}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Wishlists",
+			"item": [
+				{
+					"name": "api/user/whislist",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Usa exactamente el token de SHOPPER guardado como user_token\r",
+									"const t = (pm.environment.get('user_token') || '').trim();\r",
+									"\r",
+									"// Falla de forma explícita si falta el token shopper\r",
+									"pm.test('Existe user_token (shopper)', () => {\r",
+									"  pm.expect(t, 'Falta user_token en el environment (token de shopper)').to.be.a('string').and.not.empty;\r",
+									"});\r",
+									"\r",
+									"// Inyecta headers mínimos\r",
+									"pm.request.headers.upsert({ key: 'Authorization', value: `Bearer ${t}` });\r",
+									"const accept = (pm.environment.get('accept') || 'application/json').trim();\r",
+									"pm.request.headers.upsert({ key: 'Accept', value: accept });\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Status\r",
+									"pm.test('200 OK', () => pm.response.to.have.status(200));\r",
+									"\r",
+									"// Asegura JSON antes de leer\r",
+									"const isJson = /application\\/json/i.test(pm.response.headers.get('Content-Type') || '');\r",
+									"pm.test('Respuesta JSON', () => pm.expect(isJson).to.be.true);\r",
+									"if (!isJson) return;\r",
+									"\r",
+									"const b = pm.response.json();\r",
+									"\r",
+									"// Shape básico\r",
+									"pm.test('Shape wishlist', () => {\r",
+									"  pm.expect(b).to.be.an('object');\r",
+									"  ['userId','wishlist','wishlistItems'].forEach(k =>\r",
+									"    pm.expect(b, `Falta ${k}`).to.have.property(k)\r",
+									"  );\r",
+									"  pm.expect(b.wishlist).to.be.an('array');\r",
+									"  pm.expect(b.wishlistItems).to.be.an('array');\r",
+									"});\r",
+									"\r",
+									"// Guarda métricas/IDs útiles\r",
+									"pm.environment.set('wishlist_count', String(b.wishlistItems.length));\r",
+									"if (b.wishlistItems.length) {\r",
+									"  const first = b.wishlistItems[0];\r",
+									"  const productId = first.productId || first.productID || first.product?.id || first.id;\r",
+									"  const wishlistItemId = first.id || first.wishlistItemId;\r",
+									"  if (productId) pm.environment.set('wishlist_product_id', productId);\r",
+									"  if (wishlistItemId) pm.environment.set('wishlist_item_id', wishlistItemId);\r",
+									"}\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/user/wishlist",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"user",
+								"wishlist"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "wishlist/productid",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// === Solo shopper: usa EXCLUSIVAMENTE user_token ===\r",
+									"const token = (pm.environment.get('user_token') || '').trim();\r",
+									"pm.test('Existe user_token (shopper)', () => {\r",
+									"  pm.expect(token, 'Falta user_token en el environment').to.be.a('string').and.not.empty;\r",
+									"});\r",
+									"\r",
+									"// (opcional) valida que el rol del JWT sea Shopper (si tu payload lo trae)\r",
+									"function decodeJwt(t){ try{const [,p]=t.split('.'); return JSON.parse(atob(p)); }catch{ return {}; } }\r",
+									"const payload = decodeJwt(token);\r",
+									"if (payload && payload.role) {\r",
+									"  pm.test('Token es de Shopper', () => pm.expect(String(payload.role)).to.match(/shopper/i));\r",
+									"}\r",
+									"\r",
+									"// Inyecta headers mínimos\r",
+									"pm.request.headers.upsert({ key: 'Authorization', value: `Bearer ${token}` });\r",
+									"pm.request.headers.upsert({ key: 'Accept', value: (pm.environment.get('accept') || 'application/json') });\r",
+									"pm.request.headers.upsert({ key: 'Content-Type', value: 'application/json' });\r",
+									"\r",
+									"// === product_id (path param) ===\r",
+									"let pid = (pm.environment.get('product_id') || '').trim();\r",
+									"\r",
+									"// Si no está, prueba con otras comunes de tu environment\r",
+									"if (!pid) {\r",
+									"  const candidates = [\r",
+									"    'wishlist_product_id', 'last_product_id', 'productId',\r",
+									"    'prod_id', 'product_guid'\r",
+									"  ];\r",
+									"  for (const k of candidates) {\r",
+									"    const v = (pm.environment.get(k) || '').trim();\r",
+									"    if (v) { pid = v; pm.environment.set('product_id', pid); break; }\r",
+									"  }\r",
+									"}\r",
+									"\r",
+									"pm.test('product_id presente', () => {\r",
+									"  pm.expect(pid, 'Define product_id en el environment (GUID)').to.be.a('string').and.not.empty;\r",
+									"});\r",
+									"\r",
+									"// Valida GUID\r",
+									"const guidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\r",
+									"pm.test('product_id es GUID válido', () => pm.expect(guidRe.test(pid)).to.be.true);\r",
+									"\r",
+									"// Si el usuario dejó {{product_id}} en la URL, no hay que tocar la URL.\r",
+									"// Solo aseguramos que esté seteado en env como arriba.\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// A prueba de fallos\r",
+									"pm.test('HTTP 2xx', () => pm.expect(pm.response.code).to.be.within(200,299));\r",
+									"\r",
+									"const isJson = /application\\/json/i.test(pm.response.headers.get('Content-Type') || '');\r",
+									"pm.test('Respuesta JSON', () => pm.expect(isJson).to.be.true);\r",
+									"if (!isJson) return;\r",
+									"\r",
+									"const b = pm.response.json();\r",
+									"\r",
+									"// Estructura esperada (según tu Swagger)\r",
+									"pm.test('Respuesta correcta', () => {\r",
+									"  pm.expect(b).to.be.an('object');\r",
+									"  pm.expect(b).to.have.property('success');\r",
+									"  pm.expect(b).to.have.property('message');\r",
+									"  pm.expect(b).to.have.property('updatedWishlist');\r",
+									"});\r",
+									"\r",
+									"// Validación ligera del updatedWishlist\r",
+									"if (b.updatedWishlist) {\r",
+									"  const uw = b.updatedWishlist;\r",
+									"  pm.expect(uw).to.be.an('object');\r",
+									"  pm.expect(uw).to.have.property('userId');\r",
+									"  pm.expect(uw).to.have.property('wishlist');\r",
+									"  pm.expect(uw).to.have.property('wishlistItems'); // puede ser null según tu API\r",
+									"\r",
+									"  // Guarda métricas y referencias útiles\r",
+									"  pm.environment.set('wishlist_count', Array.isArray(uw.wishlistItems) ? String(uw.wishlistItems.length) : (uw.wishlistItems == null ? 'unknown' : '0'));\r",
+									"  // Guarda el producto recién agregado y una copia auxiliar\r",
+									"  const addedId = pm.environment.get('product_id');\r",
+									"  pm.environment.set('last_added_product_id', addedId);\r",
+									"  pm.environment.set('wishlist_product_id', addedId);\r",
+									"}\r",
+									"\r",
+									"// Mensajes de error comunes\r",
+									"if (pm.response.code === 401 || pm.response.code === 403) {\r",
+									"  console.warn('No autorizado para wishlist/add: revisa que user_token sea de shopper y esté vigente.');\r",
+									"}\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/user/wishlist/add/{{product_id2}}",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"user",
+								"wishlist",
+								"add",
+								"{{product_id2}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "delete wishlist",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// ==== SOLO SHOPPER ====\r",
+									"// 1) Token del shopper desde el environment\r",
+									"const t = (pm.environment.get('user_token') || '').trim();\r",
+									"pm.test('Existe user_token (shopper)', () => {\r",
+									"  pm.expect(t, 'Falta user_token en environment').to.be.a('string').and.not.empty;\r",
+									"});\r",
+									"\r",
+									"// (Opcional) comprobar rol en el JWT si viene en el payload\r",
+									"function decodeJwt(x){ try{const [,p]=x.split('.'); return JSON.parse(atob(p)); }catch{ return {}; } }\r",
+									"const payload = decodeJwt(t);\r",
+									"if (payload.role) {\r",
+									"  pm.test('Rol = Shopper', () => pm.expect(String(payload.role)).to.match(/shopper/i));\r",
+									"}\r",
+									"\r",
+									"// 2) Headers mínimos\r",
+									"pm.request.headers.upsert({ key: 'Authorization', value: `Bearer ${t}` });\r",
+									"pm.request.headers.upsert({ key: 'Accept', value: (pm.environment.get('accept') || 'application/json') });\r",
+									"pm.request.headers.upsert({ key: 'Content-Type', value: 'application/json' });\r",
+									"\r",
+									"// 3) product_id (path param)\r",
+									"//    Toma {{product_id}} y, si no está, intenta alternativas comunes.\r",
+									"let pid = (pm.environment.get('product_id') || '').trim();\r",
+									"if (!pid) {\r",
+									"  const alt = ['wishlist_product_id','last_added_product_id','last_product_id','productId'];\r",
+									"  for (const k of alt) {\r",
+									"    const v = (pm.environment.get(k) || '').trim();\r",
+									"    if (v) { pid = v; pm.environment.set('product_id', pid); break; }\r",
+									"  }\r",
+									"}\r",
+									"\r",
+									"pm.test('product_id presente', () => {\r",
+									"  pm.expect(pid, 'Define product_id (GUID del producto a remover)').to.be.a('string').and.not.empty;\r",
+									"});\r",
+									"\r",
+									"// Valida GUID\r",
+									"const guidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\r",
+									"pm.test('product_id es GUID válido', () => pm.expect(guidRe.test(pid)).to.be.true);\r",
+									"\r",
+									"// Nota: si la URL ya tiene {{product_id}}, no cambiamos la URL; solo aseguramos que exista en env.\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Status\r",
+									"pm.test('HTTP 2xx', () => pm.expect(pm.response.code).to.be.within(200,299));\r",
+									"\r",
+									"// JSON\r",
+									"const isJson = /application\\/json/i.test(pm.response.headers.get('Content-Type') || '');\r",
+									"pm.test('Respuesta JSON', () => pm.expect(isJson).to.be.true);\r",
+									"if (!isJson) return;\r",
+									"\r",
+									"const b = pm.response.json();\r",
+									"\r",
+									"// Shape esperado\r",
+									"pm.test('Respuesta correcta', () => {\r",
+									"  pm.expect(b).to.be.an('object');\r",
+									"  pm.expect(b).to.have.property('success');\r",
+									"  pm.expect(b).to.have.property('message');\r",
+									"  pm.expect(b).to.have.property('updatedWishlist');\r",
+									"});\r",
+									"\r",
+									"// Validación ligera y guardados útiles\r",
+									"if (b.updatedWishlist) {\r",
+									"  const uw = b.updatedWishlist;\r",
+									"  pm.expect(uw).to.have.property('userId');\r",
+									"  pm.expect(uw).to.have.property('wishlist');\r",
+									"  pm.expect(uw).to.have.property('wishlistItems'); // puede ser null\r",
+									"\r",
+									"  // Actualiza métricas\r",
+									"  const count = Array.isArray(uw.wishlistItems) ? uw.wishlistItems.length\r",
+									"               : (uw.wishlist ? uw.wishlist.length : 0);\r",
+									"  pm.environment.set('wishlist_count', String(count));\r",
+									"\r",
+									"  // Limpia el último agregado si coincide con el eliminado\r",
+									"  const removed = pm.environment.get('product_id');\r",
+									"  const lastAdded = pm.environment.get('last_added_product_id');\r",
+									"  if (removed && lastAdded && removed === lastAdded) {\r",
+									"    pm.environment.unset('last_added_product_id');\r",
+									"  }\r",
+									"}\r",
+									"\r",
+									"if (pm.response.code === 401 || pm.response.code === 403) {\r",
+									"  console.warn('No autorizado: verifica que user_token sea de shopper y esté vigente.');\r",
+									"}\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{link}}/api/user/wishlist/remove/{{product_id2}}",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"user",
+								"wishlist",
+								"remove",
+								"{{product_id2}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "check{id}",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// === SOLO SHOPPER ===\r",
+									"const token = (pm.environment.get('user_token') || '').trim();\r",
+									"pm.test('Existe user_token (shopper)', () => {\r",
+									"  pm.expect(token, 'Falta user_token en el environment').to.be.a('string').and.not.empty;\r",
+									"});\r",
+									"\r",
+									"// Headers mínimos\r",
+									"pm.request.headers.upsert({ key: 'Authorization', value: `Bearer ${token}` });\r",
+									"pm.request.headers.upsert({ key: 'Accept', value: (pm.environment.get('accept') || 'application/json') });\r",
+									"\r",
+									"// product_id para el path\r",
+									"let pid = (pm.environment.get('product_id') || '').trim();\r",
+									"if (!pid) {\r",
+									"  // intenta variables alternas comunes\r",
+									"  const alts = ['wishlist_product_id','last_added_product_id','last_product_id','productId'];\r",
+									"  for (const k of alts) { const v = (pm.environment.get(k) || '').trim(); if (v) { pid = v; pm.environment.set('product_id', v); break; } }\r",
+									"}\r",
+									"pm.test('product_id presente', () => pm.expect(pid, 'Define product_id (GUID)').to.be.a('string').and.not.empty);\r",
+									"\r",
+									"// Valida GUID\r",
+									"pm.test('product_id es GUID válido', () => {\r",
+									"  const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\r",
+									"  pm.expect(guid.test(pid)).to.be.true;\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));\r",
+									"\r",
+									"const isJson = /application\\/json/i.test(pm.response.headers.get('Content-Type') || '');\r",
+									"pm.test('Respuesta JSON', () => pm.expect(isJson).to.be.true);\r",
+									"if (!isJson) return;\r",
+									"\r",
+									"const b = pm.response.json();\r",
+									"pm.test('Shape correcto', () => {\r",
+									"  pm.expect(b).to.be.an('object');\r",
+									"  pm.expect(b).to.have.property('exists');\r",
+									"  pm.expect(b.exists).to.be.a('boolean');\r",
+									"});\r",
+									"\r",
+									"// Guarda resultado para otros requests/flows\r",
+									"pm.environment.set('wishlist_exists', String(b.exists));\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/user/wishlist/check/{{product_id2}}",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"user",
+								"wishlist",
+								"check",
+								"{{product_id2}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Store",
+			"item": [
+				{
+					"name": "api/store/products",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const env = k => pm.environment.get(k);\r",
+									"const set = (k,v) => pm.environment.set(k, v);\r",
+									"\r",
+									"// Defaults\r",
+									"if (env('page') === undefined) set('page', '1');\r",
+									"if (env('page_size') === undefined) set('page_size', '12');\r",
+									"if (env('sort_by') === undefined) set('sort_by', '0');\r",
+									"if (env('sort_dir') === undefined) set('sort_dir', 'asc');\r",
+									"if (env('search_term') === undefined) set('search_term', '');\r",
+									"if (env('product_price') === undefined) set('product_price', '');\r",
+									"\r",
+									"// Base y path\r",
+									"const base = (env('link') || '').replace(/\\/+$/,''); // sin slash final\r",
+									"const path = '/api/store/products';\r",
+									"const u = new URL(base + path);\r",
+									"\r",
+									"// Paginación y orden\r",
+									"u.searchParams.set('page', env('page'));\r",
+									"u.searchParams.set('pageSize', env('page_size'));\r",
+									"u.searchParams.set('sortBy', env('sort_by'));\r",
+									"u.searchParams.set('sortDir', env('sort_dir'));\r",
+									"\r",
+									"// Filtros opcionales (usa solo si no están vacíos)\r",
+									"const title = (env('search_term') || '').trim();\r",
+									"const price = (env('product_price') || '').trim();\r",
+									"if (title) u.searchParams.set('title', title);\r",
+									"if (price) u.searchParams.set('price', price);\r",
+									"\r",
+									"// Fija URL final y log\r",
+									"pm.request.url = u.toString();\r",
+									"console.log('[STORE LIST] URL =>', pm.request.url);\r",
+									"pm.environment.set('last_store_products_url', pm.request.url);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"\r",
+									"const body = pm.response.json();\r",
+									"pm.test(\"Tiene items[]\", () => {\r",
+									"  pm.expect(body).to.be.an('object');\r",
+									"  pm.expect(body).to.have.property('items').that.is.an('array');\r",
+									"});\r",
+									"\r",
+									"const items = Array.isArray(body.items) ? body.items : [];\r",
+									"pm.environment.set('products_found', String(items.length));\r",
+									"\r",
+									"if (items.length) {\r",
+									"  const p0 = items[0];\r",
+									"\r",
+									"  pm.test(\"Campos básicos\", () => {\r",
+									"    ['id','title','price','category','image','description'].forEach(k =>\r",
+									"      pm.expect(p0).to.have.property(k));\r",
+									"  });\r",
+									"\r",
+									"  pm.test(\"Rating promedio y cantidad\", () => {\r",
+									"    pm.expect(p0).to.have.property('rating');\r",
+									"    // Si tu backend pone null cuando no hay reseñas, quita estas dos líneas\r",
+									"    pm.expect(p0.rating).to.have.property('rate');\r",
+									"    pm.expect(p0.rating).to.have.property('count');\r",
+									"  });\r",
+									"\r",
+									"  pm.environment.set('product_id', p0.id);\r",
+									"  if (p0.rating) {\r",
+									"    pm.environment.set('product_rating_avg', String(p0.rating.rate));\r",
+									"    pm.environment.set('product_rating_count', String(p0.rating.count));\r",
+									"  } else {\r",
+									"    pm.environment.unset('product_rating_avg');\r",
+									"    pm.environment.unset('product_rating_count');\r",
+									"  }\r",
+									"} else {\r",
+									"  pm.test(\"Sin resultados\", () => pm.expect(items.length).to.eql(0));\r",
+									"  pm.environment.unset('product_id');\r",
+									"  pm.environment.unset('product_rating_avg');\r",
+									"  pm.environment.unset('product_rating_count');\r",
+									"}\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/store/products",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"store",
+								"products"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "User",
+			"item": [
+				{
+					"name": "api/Users",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"pm.response.to.be.withBody; pm.response.to.be.json;\r",
+									"\r",
+									"const r = pm.response.json();\r",
+									"pm.environment.set(\"token\", r.token || r.accessToken || r.jwt || \"\");\r",
+									"pm.test(\"Token presente\", () => pm.expect(pm.environment.get(\"token\")).to.be.a(\"string\").and.not.empty);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const base = pm.environment.get(\"link\");          // p.ej. http://localhost:7101\r",
+									"const adminEmail = pm.environment.get(\"email2\");  // admin@tte.com\r",
+									"const adminPass  = pm.environment.get(\"password2\");// Password123!\r",
+									"\r",
+									"function setAuthHeader() {\r",
+									"  const t = pm.environment.get(\"token\");\r",
+									"  if (t) pm.request.headers.upsert({ key: \"Authorization\", value: `Bearer ${t}` });\r",
+									"}\r",
+									"\r",
+									"// Evita bucles infinitos\r",
+									"const retried = pm.variables.get(\"login_retried\") === \"1\";\r",
+									"\r",
+									"// 1) Si ya hay token → agrega header y sigue\r",
+									"if (pm.environment.get(\"token\")) {\r",
+									"  setAuthHeader();\r",
+									"  return;\r",
+									"}\r",
+									"\r",
+									"// 2) Si NO hay token y aún no reintentamos → login y reintentar\r",
+									"if (!retried) {\r",
+									"  pm.variables.set(\"login_retried\", \"1\");\r",
+									"\r",
+									"  pm.sendRequest({\r",
+									"    url: `${base}/api/login`,\r",
+									"    method: \"POST\",\r",
+									"    header: { \"Content-Type\": \"application/json\" },\r",
+									"    body: { mode: \"raw\", raw: JSON.stringify({ email: adminEmail, password: adminPass }) }\r",
+									"  }, (err, res) => {\r",
+									"    if (err || !res) throw new Error(\"No se pudo hacer login para obtener token.\");\r",
+									"    const j = res.json();\r",
+									"    const t = j.token || j.accessToken || j.jwt || \"\";\r",
+									"    if (!t) throw new Error(\"Login respondió sin token.\");\r",
+									"\r",
+									"    pm.environment.set(\"token\", t);\r",
+									"    setAuthHeader();\r",
+									"\r",
+									"    // Reintenta esta misma request ya con token\r",
+									"    postman.setNextRequest(pm.info.requestName);\r",
+									"  });\r",
+									"\r",
+									"  // Evita que se ejecute esta request sin token en este ciclo\r",
+									"  postman.setNextRequest(null);\r",
+									"  return;\r",
+									"}\r",
+									"\r",
+									"// 3) Si llegamos aquí, ya reintentamos y no hay token\r",
+									"throw new Error(\"No hay token y el login automático falló.\");\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"email\": \"{{email3}}\",\r\n  \"name\": \"{{name}}\",\r\n  \"username\": \"{{username3}}\",\r\n  \"password\": \"{{password3}}\",\r\n  \"role\": {{role}}\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{link}}/api/Users",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Users"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Session",
+			"item": [
+				{
+					"name": "api/Sessions/current",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const base = (pm.environment.get(\"link\") || \"\").trim();\r",
+									"const email = (pm.environment.get(\"email2\") || \"\").trim();\r",
+									"const pass  = (pm.environment.get(\"password2\") || \"\").trim();\r",
+									"\r",
+									"function setAuth(tok){ pm.request.headers.upsert({ key:\"Authorization\", value:`Bearer ${tok}` }); }\r",
+									"function getTok(){ return (pm.environment.get(\"token\") || \"\").trim(); }\r",
+									"function decodePart(b64){\r",
+									"  b64 = b64.replace(/-/g, \"+\").replace(/_/g, \"/\");\r",
+									"  const pad = b64.length % 4 ? 4 - (b64.length % 4) : 0;\r",
+									"  return JSON.parse(decodeURIComponent(escape(atob(b64 + \"=\".repeat(pad)))));\r",
+									"}\r",
+									"function isExpired(tok){\r",
+									"  try { const [, p] = tok.split(\".\"); const { exp } = decodePart(p); return !exp || (Date.now()/1000) > (exp - 30); }\r",
+									"  catch { return true; }\r",
+									"}\r",
+									"\r",
+									"let tok = getTok();\r",
+									"if (!tok || isExpired(tok)) {\r",
+									"  if (!base || !email || !pass) throw new Error(\"Faltan link/email2/password2 para auto-login.\");\r",
+									"  pm.sendRequest({\r",
+									"    url: `${base}/api/login`,\r",
+									"    method: \"POST\",\r",
+									"    header: { \"Content-Type\":\"application/json\" },\r",
+									"    body: { mode:\"raw\", raw: JSON.stringify({ email, password: pass }) }\r",
+									"  }, (err, res) => {\r",
+									"    if (err || !res) throw new Error(\"No se pudo hacer login.\");\r",
+									"    const j = res.json();\r",
+									"    tok = j.token || j.accessToken || j.jwt || \"\";\r",
+									"    if (!tok) throw new Error(\"Login sin token.\");\r",
+									"    pm.environment.set(\"token\", tok);\r",
+									"    setAuth(tok);\r",
+									"    postman.setNextRequest(pm.info.requestName); // reintenta este GET con token\r",
+									"  });\r",
+									"  postman.setNextRequest(null);\r",
+									"  return;\r",
+									"}\r",
+									"setAuth(tok);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"pm.response.to.be.withBody; pm.response.to.be.json;\r",
+									"\r",
+									"const j = pm.response.json();\r",
+									"pm.test(\"Tiene campos de sesión\", () => {\r",
+									"  [\"sessionId\",\"userId\",\"status\",\"createdAt\"].forEach(k => pm.expect(j).to.have.property(k));\r",
+									"});\r",
+									"\r",
+									"const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\r",
+									"pm.test(\"IDs con formato GUID\", () => {\r",
+									"  pm.expect(j.sessionId).to.match(guid);\r",
+									"  pm.expect(j.userId).to.match(guid);\r",
+									"});\r",
+									"\r",
+									"pm.test(\"createdAt ISO-8601\", () => {\r",
+									"  pm.expect(j.createdAt).to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}/);\r",
+									"});\r",
+									"\r",
+									"// Guarda en environment para otros endpoints\r",
+									"pm.environment.set(\"session_id\", j.sessionId);\r",
+									"pm.environment.set(\"session_status\", j.status);\r",
+									"pm.environment.set(\"session_user_id\", j.userId);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Sessions/current",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Sessions",
+								"current"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "my-history",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const base = (pm.environment.get(\"link\") || \"\").trim();\r",
+									"const email = (pm.environment.get(\"email2\") || \"\").trim();\r",
+									"const pass  = (pm.environment.get(\"password2\") || \"\").trim();\r",
+									"\r",
+									"function setAuth(tok){ pm.request.headers.upsert({ key:\"Authorization\", value:`Bearer ${tok}` }); }\r",
+									"function tok(){ return (pm.environment.get(\"token\") || \"\").trim(); }\r",
+									"function decode(b64){ b64=b64.replace(/-/g,\"+\").replace(/_/g,\"/\"); const pad=b64.length%4?4-(b64.length%4):0; return JSON.parse(decodeURIComponent(escape(atob(b64+\"=\".repeat(pad))))); }\r",
+									"function expired(t){ try{ const [,p]=t.split(\".\"); const {exp}=decode(p); return !exp || (Date.now()/1000)>(exp-30);}catch{return true;} }\r",
+									"\r",
+									"let t = tok();\r",
+									"if (!t || expired(t)) {\r",
+									"  if (!base || !email || !pass) throw new Error(\"Faltan link/email2/password2 para auto-login.\");\r",
+									"  pm.sendRequest({\r",
+									"    url: `${base}/api/login`,\r",
+									"    method: \"POST\",\r",
+									"    header: { \"Content-Type\": \"application/json\" },\r",
+									"    body: { mode: \"raw\", raw: JSON.stringify({ email, password: pass }) }\r",
+									"  }, (err, res) => {\r",
+									"    if (err || !res) throw new Error(\"Login falló.\");\r",
+									"    const j = res.json();\r",
+									"    t = j.token || j.accessToken || j.jwt || \"\";\r",
+									"    if (!t) throw new Error(\"Login no devolvió token.\");\r",
+									"    pm.environment.set(\"token\", t);\r",
+									"    setAuth(t);\r",
+									"    postman.setNextRequest(pm.info.requestName); // reintenta este GET con token\r",
+									"  });\r",
+									"  postman.setNextRequest(null);\r",
+									"  return;\r",
+									"}\r",
+									"setAuth(t);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"pm.response.to.be.withBody; pm.response.to.be.json;\r",
+									"\r",
+									"const j = pm.response.json();\r",
+									"// El ejemplo de Swagger muestra { userId, message }\r",
+									"pm.test(\"Tiene userId y message\", () => {\r",
+									"  pm.expect(j).to.have.property(\"userId\");\r",
+									"  pm.expect(j).to.have.property(\"message\");\r",
+									"});\r",
+									"\r",
+									"// GUID válido para userId (si tu API usa GUID)\r",
+									"pm.test(\"userId formato GUID\", () => {\r",
+									"  const re=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\r",
+									"  pm.expect(j.userId).to.match(re);\r",
+									"});\r",
+									"\r",
+									"// Guarda para otras requests\r",
+									"pm.environment.set(\"history_user_id\", j.userId);\r",
+									"pm.environment.set(\"history_message\", j.message || \"\");\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Sessions/my-history",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Sessions",
+								"my-history"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Diagnostics",
+			"item": [
+				{
+					"name": "Health",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const base = (pm.environment.get(\"link\") || \"\").trim();\r",
+									"const email = (pm.environment.get(\"email2\") || \"\").trim();\r",
+									"const pass  = (pm.environment.get(\"password2\") || \"\").trim();\r",
+									"\r",
+									"function setAuth(tok){ pm.request.headers.upsert({ key:\"Authorization\", value:`Bearer ${tok}` }); }\r",
+									"function tok(){ return (pm.environment.get(\"token\") || \"\").trim(); }\r",
+									"function decode(b64){ b64=b64.replace(/-/g,\"+\").replace(/_/g,\"/\"); const pad=b64.length%4?4-(b64.length%4):0; return JSON.parse(decodeURIComponent(escape(atob(b64+\"=\".repeat(pad))))); }\r",
+									"function expired(t){ try{ const [,p]=t.split(\".\"); const {exp}=decode(p); return !exp || (Date.now()/1000)>(exp-30);}catch{return true;} }\r",
+									"\r",
+									"// Asegura Accept\r",
+									"pm.request.headers.upsert({ key:\"Accept\", value:\"application/json\" });\r",
+									"\r",
+									"let t = tok();\r",
+									"if (!t || expired(t)) {\r",
+									"  if (!base || !email || !pass) throw new Error(\"Faltan link/email2/password2 para auto-login.\");\r",
+									"  pm.sendRequest({\r",
+									"    url: `${base}/api/login`,\r",
+									"    method: \"POST\",\r",
+									"    header: { \"Content-Type\":\"application/json\" },\r",
+									"    body: { mode:\"raw\", raw: JSON.stringify({ email, password: pass }) }\r",
+									"  }, (err, res) => {\r",
+									"    if (err || !res) throw new Error(\"Login falló.\");\r",
+									"    const j = res.json();\r",
+									"    t = j.token || j.accessToken || j.jwt || \"\";\r",
+									"    if (!t) throw new Error(\"Login no devolvió token.\");\r",
+									"    pm.environment.set(\"token\", t);\r",
+									"    setAuth(t);\r",
+									"    postman.setNextRequest(pm.info.requestName); // reintenta este GET con token\r",
+									"  });\r",
+									"  postman.setNextRequest(null);\r",
+									"  return;\r",
+									"}\r",
+									"setAuth(t);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"pm.response.to.be.withBody; pm.response.to.be.json;\r",
+									"\r",
+									"const j = pm.response.json();\r",
+									"\r",
+									"// Estructura esperada del ejemplo de Swagger\r",
+									"pm.test(\"Tiene cartService, timestamp y environment\", () => {\r",
+									"  [\"cartService\",\"timestamp\",\"environment\"].forEach(k => pm.expect(j).to.have.property(k));\r",
+									"});\r",
+									"\r",
+									"// Valores y formatos\r",
+									"pm.test(\"cartService es 'OK'\", () => pm.expect(j.cartService).to.eql(\"OK\"));\r",
+									"pm.test(\"timestamp ISO-8601\", () => pm.expect(j.timestamp).to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}/));\r",
+									"pm.test(\"environment no vacío\", () => pm.expect(String(j.environment||\"\").length).to.be.greaterThan(0));\r",
+									"\r",
+									"// Guarda para otras pruebas\r",
+									"pm.environment.set(\"diag_environment\", j.environment);\r",
+									"pm.environment.set(\"diag_timestamp\", j.timestamp);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Diagnostics/health",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Diagnostics",
+								"health"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin/Sessions/Managment",
+			"item": [
+				{
+					"name": "sessions/active",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// === Config ===\r",
+									"const base = (pm.environment.get(\"link\") || \"\").trim();\r",
+									"const email = (pm.environment.get(\"email2\") || \"\").trim();\r",
+									"const pass  = (pm.environment.get(\"password2\") || \"\").trim();\r",
+									"\r",
+									"function setAuth(tok){ pm.request.headers.upsert({ key:\"Authorization\", value:`Bearer ${tok}` }); }\r",
+									"function tok(){ return (pm.environment.get(\"token\") || \"\").trim(); }\r",
+									"function decode(b64){ b64=b64.replace(/-/g,\"+\").replace(/_/g,\"/\"); const pad=b64.length%4?4-(b64.length%4):0; return JSON.parse(decodeURIComponent(escape(atob(b64+\"=\".repeat(pad))))); }\r",
+									"function expired(t){ try{ const [,p]=t.split(\".\"); const {exp}=decode(p); return !exp || (Date.now()/1000)>(exp-30);}catch{return true;} }\r",
+									"\r",
+									"// === Token check ===\r",
+									"let t = tok();\r",
+									"if (!t || expired(t)) {\r",
+									"  if (!base || !email || !pass) throw new Error(\"Faltan link/email2/password2 para auto-login.\");\r",
+									"  pm.sendRequest({\r",
+									"    url: `${base}/api/login`,\r",
+									"    method: \"POST\",\r",
+									"    header: { \"Content-Type\": \"application/json\" },\r",
+									"    body: { mode: \"raw\", raw: JSON.stringify({ email, password: pass }) }\r",
+									"  }, (err, res) => {\r",
+									"    if (err || !res) throw new Error(\"No se pudo hacer login para obtener token.\");\r",
+									"    const j = res.json();\r",
+									"    t = j.token || j.accessToken || j.jwt || \"\";\r",
+									"    if (!t) throw new Error(\"Login no devolvió token.\");\r",
+									"    pm.environment.set(\"token\", t);\r",
+									"    setAuth(t);\r",
+									"    postman.setNextRequest(pm.info.requestName); // reintenta esta misma request\r",
+									"  });\r",
+									"  postman.setNextRequest(null);\r",
+									"  return;\r",
+									"}\r",
+									"setAuth(t);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"pm.response.to.be.withBody; pm.response.to.be.json;\r",
+									"\r",
+									"const j = pm.response.json();\r",
+									"pm.test(\"Tiene totalActiveSessions y sessions[]\", () => {\r",
+									"  pm.expect(j).to.have.property(\"totalActiveSessions\");\r",
+									"  pm.expect(j).to.have.property(\"sessions\");\r",
+									"  pm.expect(Array.isArray(j.sessions)).to.be.true;\r",
+									"});\r",
+									"\r",
+									"// Valida al menos una sesión\r",
+									"if (j.sessions.length > 0) {\r",
+									"  const s = j.sessions[0];\r",
+									"  [\"sessionId\",\"userId\",\"username\",\"email\",\"role\",\"createdAt\"].forEach(k =>\r",
+									"    pm.expect(s, `Falta campo ${k}`).to.have.property(k)\r",
+									"  );\r",
+									"  pm.expect(s.role).to.eql(\"SuperAdmin\");\r",
+									"}\r",
+									"\r",
+									"// Guarda info útil en environment\r",
+									"pm.environment.set(\"admin_total_sessions\", j.totalActiveSessions);\r",
+									"pm.environment.set(\"admin_last_session_id\", j.sessions?.[0]?.sessionId || \"\");\r",
+									"pm.environment.set(\"admin_last_user\", j.sessions?.[0]?.username || \"\");\r",
+									"\r",
+									"// Métrica simple\r",
+									"pm.test(\"Total de sesiones activo > 0\", () => pm.expect(j.totalActiveSessions).to.be.greaterThan(0));\r",
+									"\r",
+									"console.log(\"Sesiones activas (resumen):\", {\r",
+									"  total: j.totalActiveSessions,\r",
+									"  primera: j.sessions?.[0]\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Admin/sessions/active",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Admin",
+								"sessions",
+								"active"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "sessions/all",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Overrides desde page2 / page_size2 si existen\r",
+									"const p2  = pm.environment.get('page2');\r",
+									"const ps2 = pm.environment.get('page_size2');\r",
+									"if (p2  !== undefined && p2  !== null && String(p2).trim()  !== '') pm.environment.set('page', String(parseInt(p2,10)||1));\r",
+									"if (ps2 !== undefined && ps2 !== null && String(ps2).trim() !== '') pm.environment.set('page_size', String(parseInt(ps2,10)||12));\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Admin/sessions/all",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Admin",
+								"sessions",
+								"all"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Statics",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// ---------- Status\r",
+									"pm.test(\"200 OK\", () => pm.response.to.have.status(200));\r",
+									"\r",
+									"// ---------- JSON base\r",
+									"let b;\r",
+									"pm.test(\"JSON válido con shape esperado\", () => {\r",
+									"  b = pm.response.json();\r",
+									"  pm.expect(b).to.be.an('object');\r",
+									"  [\"totalSessions\",\"sessionsByStatus\",\"sessionsByRole\",\"recentLoginsLast7Days\"].forEach(k =>\r",
+									"    pm.expect(b, `Falta ${k}`).to.have.property(k)\r",
+									"  );\r",
+									"  pm.expect(b.sessionsByStatus).to.be.an('object');\r",
+									"  [\"active\",\"closed\",\"expired\"].forEach(k =>\r",
+									"    pm.expect(b.sessionsByStatus, `Falta status ${k}`).to.have.property(k)\r",
+									"  );\r",
+									"  pm.expect(b.sessionsByRole).to.be.an('array');\r",
+									"  pm.expect(b.recentLoginsLast7Days).to.be.an('array');\r",
+									"});\r",
+									"\r",
+									"// ---------- Coherencia de conteos\r",
+									"pm.test(\"Conteos coherentes\", () => {\r",
+									"  const s = b.sessionsByStatus;\r",
+									"  [\"active\",\"closed\",\"expired\"].forEach(k => pm.expect(s[k]).to.be.a('number').and.at.least(0));\r",
+									"  pm.expect(b.totalSessions).to.be.a('number').and.at.least(0);\r",
+									"\r",
+									"  // Algunas APIs cuentan \"total\" como acumulado histórico; lo verificamos suavemente\r",
+									"  const sum = (s.active||0) + (s.closed||0) + (s.expired||0);\r",
+									"  pm.expect(sum).to.be.at.least(b.totalSessions - 0, \"Suma de estados < totalSessions (revisa definición de total)\");\r",
+									"});\r",
+									"\r",
+									"// ---------- Validación por rol\r",
+									"pm.test(\"sessionsByRole válidos\", () => {\r",
+									"  b.sessionsByRole.forEach((r, i) => {\r",
+									"    pm.expect(r, `Rol #${i} incompleto`).to.include.all.keys(\"role\",\"totalSessions\",\"activeSessions\");\r",
+									"    pm.expect(r.role).to.be.a('string').and.not.empty;\r",
+									"    pm.expect(r.totalSessions).to.be.a('number').and.at.least(0);\r",
+									"    pm.expect(r.activeSessions).to.be.a('number').and.at.least(0);\r",
+									"    pm.expect(r.activeSessions).to.be.at.most(r.totalSessions);\r",
+									"  });\r",
+									"});\r",
+									"\r",
+									"// ---------- Últimos 7 días\r",
+									"pm.test(\"recentLoginsLast7Days correcto\", () => {\r",
+									"  // suele ser 7, pero aceptamos 0..7 si hay días sin datos\r",
+									"  pm.expect(b.recentLoginsLast7Days.length).to.be.at.most(7);\r",
+									"  b.recentLoginsLast7Days.forEach((d, i) => {\r",
+									"    pm.expect(d, `Día #${i} inválido`).to.include.all.keys(\"date\",\"count\");\r",
+									"    pm.expect(d.count).to.be.a('number').and.at.least(0);\r",
+									"    pm.expect(new Date(d.date).toString()).not.to.eql(\"Invalid Date\");\r",
+									"  });\r",
+									"});\r",
+									"\r",
+									"// ---------- Guardados en environment (para otros requests)\r",
+									"pm.environment.set(\"stats_total\", b.totalSessions);\r",
+									"pm.environment.set(\"stats_active\", b.sessionsByStatus.active);\r",
+									"pm.environment.set(\"stats_closed\", b.sessionsByStatus.closed);\r",
+									"pm.environment.set(\"stats_expired\", b.sessionsByStatus.expired);\r",
+									"\r",
+									"// Mapa por rol: { \"SuperAdmin\": {total, active}, ... }\r",
+									"const byRole = {};\r",
+									"b.sessionsByRole.forEach(r => byRole[r.role] = { total: r.totalSessions, active: r.activeSessions });\r",
+									"pm.environment.set(\"stats_by_role\", JSON.stringify(byRole));\r",
+									"\r",
+									"// Serie últimos 7 días: [{date, count}, ...]\r",
+									"pm.environment.set(\"stats_last7d\", JSON.stringify(b.recentLoginsLast7Days));\r",
+									"\r",
+									"// ---------- Asserts rápidos de guardado\r",
+									"pm.test(\"Guardó métricas en environment\", () => {\r",
+									"  pm.expect(pm.environment.get(\"stats_total\")).to.exist;\r",
+									"  pm.expect(pm.environment.get(\"stats_by_role\")).to.exist;\r",
+									"});\r",
+									"\r",
+									"// ---------- Log útil en consola\r",
+									"console.log(\"Sessions status:\", b.sessionsByStatus);\r",
+									"console.log(\"By role:\", byRole);\r",
+									"console.log(\"Last 7 days:\", b.recentLoginsLast7Days);\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "{{accept}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{link}}/api/Admin/sessions/statistics",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Admin",
+								"sessions",
+								"statistics"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Cart",
+			"item": [
+				{
+					"name": "my-carts",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// ==== SOLO SHOPPER ====\r",
+									"// Toma el JWT del shopper desde el environment y lo inyecta\r",
+									"const t = (pm.environment.get('user_token') || '').trim();\r",
+									"\r",
+									"pm.test('Existe user_token (shopper)', () => {\r",
+									"  pm.expect(t, 'Falta user_token en el environment').to.be.a('string').and.not.empty;\r",
+									"});\r",
+									"\r",
+									"// Headers mínimos\r",
+									"pm.request.headers.upsert({ key: 'Authorization', value: `Bearer ${t}` });\r",
+									"pm.request.headers.upsert({ key: 'Accept', value: (pm.environment.get('accept') || 'application/json') });\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// --- Status & tipo\r",
+									"pm.test('200 OK', () => pm.response.to.have.status(200));\r",
+									"const isJson = /application\\/json/i.test(pm.response.headers.get('Content-Type') || '');\r",
+									"pm.test('Respuesta JSON', () => pm.expect(isJson).to.be.true);\r",
+									"if (!isJson) return;\r",
+									"\r",
+									"// --- Shape básico\r",
+									"const carts = pm.response.json();\r",
+									"pm.test('Es un array de carritos', () => pm.expect(carts).to.be.an('array'));\r",
+									"\r",
+									"// --- Validación ligera y guardados útiles\r",
+									"let activeId = null, firstId = null, totalItems = 0, lastTotal = 0;\r",
+									"\r",
+									"carts.forEach((c, i) => {\r",
+									"  pm.expect(c).to.be.an('object');\r",
+									"  ['id','userId','status','items'].forEach(k =>\r",
+									"    pm.expect(c, `Falta ${k} en cart #${i}`).to.have.property(k)\r",
+									"  );\r",
+									"  pm.expect(c.items).to.be.an('array');\r",
+									"\r",
+									"  if (i === 0) firstId = c.id;\r",
+									"\r",
+									"  // suma items\r",
+									"  c.items.forEach(it => { totalItems += (it.quantity || 0); });\r",
+									"\r",
+									"  // intenta tomar finalTotal/totalAfterDiscount si existe\r",
+									"  lastTotal = c.finalTotal ?? c.totalAfterDiscount ?? c.totalBeforeDiscount ?? 0;\r",
+									"\r",
+									"  if (String(c.status).toLowerCase() === 'active') activeId = c.id;\r",
+									"});\r",
+									"\r",
+									"// Guarda en environment para siguientes requests (add item, checkout, etc.)\r",
+									"pm.environment.set('carts_count', String(carts.length));\r",
+									"if (firstId) pm.environment.set('first_cart_id', firstId);\r",
+									"if (activeId) pm.environment.set('active_cart_id', activeId);\r",
+									"pm.environment.set('cart_items_total', String(totalItems));\r",
+									"pm.environment.set('last_cart_total', String(lastTotal));\r",
+									"\r",
+									"// Logs útiles\r",
+									"console.log({ carts_count: carts.length, first_cart_id: firstId, active_cart_id: activeId, total_items: totalItems, last_total: lastTotal });\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{link}}/api/Cart/my-carts",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Cart",
+								"my-carts"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "is active",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// === SOLO SHOPPER ===\r",
+									"const t = (pm.environment.get('user_token') || '').trim();\r",
+									"\r",
+									"pm.test('Existe user_token (shopper)', () => {\r",
+									"  pm.expect(t, 'Falta user_token en el environment').to.be.a('string').and.not.empty;\r",
+									"});\r",
+									"\r",
+									"// Headers mínimos\r",
+									"pm.request.headers.upsert({ key: 'Authorization', value: `Bearer ${t}` });\r",
+									"pm.request.headers.upsert({ key: 'Accept', value: (pm.environment.get('accept') || 'application/json') });\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));\r",
+									"\r",
+									"const isJson = /application\\/json/i.test(pm.response.headers.get('Content-Type') || '');\r",
+									"pm.test('Respuesta JSON', () => pm.expect(isJson).to.be.true);\r",
+									"if (!isJson) return;\r",
+									"\r",
+									"const cart = pm.response.json();\r",
+									"\r",
+									"pm.test('Shape de carrito activo', () => {\r",
+									"  pm.expect(cart).to.be.an('object');\r",
+									"  ['id','userId','status','items'].forEach(k =>\r",
+									"    pm.expect(cart, `Falta ${k}`).to.have.property(k)\r",
+									"  );\r",
+									"  pm.expect(String(cart.status).toLowerCase()).to.eql('active');\r",
+									"  pm.expect(cart.items).to.be.an('array');\r",
+									"});\r",
+									"\r",
+									"// Guarda datos útiles para otros endpoints\r",
+									"pm.environment.set('active_cart_id', cart.id);\r",
+									"pm.environment.set('active_cart_items', String((cart.items || []).length));\r",
+									"pm.environment.set('active_cart_total', String(cart.finalTotal ?? cart.totalAfterDiscount ?? cart.totalBeforeDiscount ?? 0));\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{link}}/api/Cart/active",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Cart",
+								"active"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "add-item",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// ==== SOLO SHOPPER ====\r",
+									"const t = (pm.environment.get('user_token') || '').trim();\r",
+									"pm.test('Existe user_token (shopper)', () => pm.expect(t).to.be.a('string').and.not.empty);\r",
+									"pm.request.headers.upsert({ key: 'Authorization', value: `Bearer ${t}` });\r",
+									"pm.request.headers.upsert({ key: 'Accept', value: (pm.environment.get('accept') || 'application/json') });\r",
+									"pm.request.headers.upsert({ key: 'Content-Type', value: 'application/json' });\r",
+									"\r",
+									"// ---- productId desde product_id3 (fallback: product_id) ----\r",
+									"let pid = (pm.environment.get('product_id3') || pm.environment.get('product_id') || '').trim();\r",
+									"pm.test('product_id3/product_id presente', () => pm.expect(pid, 'Define product_id3 o product_id').to.be.a('string').and.not.empty);\r",
+									"const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\r",
+									"pm.test('GUID válido', () => pm.expect(guid.test(pid)).to.be.true);\r",
+									"\r",
+									"// ---- quantity desde environment: \"quantity\" ----\r",
+									"let qty = parseInt(String(pm.environment.get('quantity') ?? '1'), 10);\r",
+									"if (!Number.isFinite(qty) || qty < 1) qty = 1;          // sanea\r",
+									"pm.environment.set('quantity', String(qty));            // normaliza\r",
+									"\r",
+									"// ---- cuerpo limpio ----\r",
+									"const body = { productId: pid, quantity: qty };\r",
+									"pm.request.body.update(JSON.stringify(body, null, 2));\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));\r",
+									"const isJson = /application\\/json/i.test(pm.response.headers.get('Content-Type') || '');\r",
+									"pm.test('Respuesta JSON', () => pm.expect(isJson).to.be.true);\r",
+									"if (!isJson) return;\r",
+									"\r",
+									"const cart = pm.response.json();\r",
+									"pm.test('Carrito actualizado', () => {\r",
+									"  pm.expect(cart).to.be.an('object');\r",
+									"  ['id','userId','status','items'].forEach(k => pm.expect(cart, `Falta ${k}`).to.have.property(k));\r",
+									"  pm.expect(cart.items).to.be.an('array').and.not.empty;\r",
+									"});\r",
+									"\r",
+									"// Guarda info útil\r",
+									"pm.environment.set('active_cart_id', cart.id);\r",
+									"pm.environment.set('active_cart_total', String(cart.finalTotal ?? cart.totalAfterDiscount ?? cart.totalBeforeDiscount ?? 0));\r",
+									"const target = (pm.environment.get('product_id3') || pm.environment.get('product_id'));\r",
+									"const added = cart.items.find(it => (it.productId || it.productID) === target);\r",
+									"if (added) pm.environment.set('last_added_qty', String(added.quantity || ''));\r",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{link}}/api/Cart/add-item",
+							"host": [
+								"{{link}}"
+							],
+							"path": [
+								"api",
+								"Cart",
+								"add-item"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

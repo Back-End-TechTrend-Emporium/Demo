@@ -1,57 +1,38 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
 using Data;
 using External.FakeStore;
 using Logica.Interfaces;
 using Logica.Repositories;
 using Logica.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
 
-<<<<<<< HEAD
-// === CARGAR USER SECRETS EN PRODUCTION PARA TESTING LOCAL ===
-=======
-// Configure CORS
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("FrontPolicy",
-        policy =>
-        {
-            policy.WithOrigins(
-                "http://localhost:5173",
-                "http://127.0.0.1:5173",
-                "http://localhost:3000",
-                "http://127.0.0.1:3000"
-            )
-            .AllowAnyMethod()
-            .AllowAnyHeader()
-            .AllowCredentials();
-        });
-});
+
 // === LOAD USER SECRETS IN PRODUCTION FOR LOCAL TESTING ===
->>>>>>> d4cae3d (CORS)
 if (builder.Environment.IsProduction())
 {
     builder.Configuration.AddUserSecrets<Program>();
     Console.WriteLine("[DEBUG] User Secrets loaded for Production environment");
 }
 
-// === Resolver connection string según el entorno ===
+// === Resolve connection string according to environment ===
 string? connectionString;
 
 if (builder.Environment.IsDevelopment())
 {
-    // En desarrollo, usar la conexión local del appsettings.Development.json
+    // In development, use local connection from appsettings.Development.json
     connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     Console.WriteLine($"[DEVELOPMENT] Using local database: {connectionString}");
 }
 else
 {
-    // En producción, usar la conexión de Azure desde múltiples fuentes
+    // In production, use Azure connection from multiple sources
     connectionString = 
         builder.Configuration["ConnectionStrings:ProductionConnection"] // User Secrets (local testing)
         ?? builder.Configuration.GetConnectionString("ProductionConnection") // User Secrets (local testing)
@@ -61,11 +42,11 @@ else
         ?? Environment.GetEnvironmentVariable("SQLCONNSTR_ProductionConnection")
         ?? Environment.GetEnvironmentVariable("SQLCONNSTR_DefaultConnection")
         ?? Environment.GetEnvironmentVariable("CUSTOMCONNSTR_DefaultConnection");
-    
+
     Console.WriteLine($"[PRODUCTION] Using Azure database");
     Console.WriteLine($"[DEBUG] Connection string found: {!string.IsNullOrEmpty(connectionString)}");
     
-    // Debug adicional para Azure App Service
+    // Additional debug for Azure App Service
     if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME")))
     {
         Console.WriteLine($"[DEBUG] Running in Azure App Service: {Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME")}");
@@ -75,7 +56,7 @@ else
 
 if (string.IsNullOrWhiteSpace(connectionString))
 {
-    // Agregar debugging para ver qué configuración está disponible
+    // Add debugging to see what configuration is available
     Console.WriteLine("[DEBUG] Available configuration keys:");
     foreach (var item in builder.Configuration.AsEnumerable())
     {
@@ -84,13 +65,13 @@ if (string.IsNullOrWhiteSpace(connectionString))
             Console.WriteLine($"  {item.Key} = {(item.Value?.Length > 0 ? "[SET]" : "[EMPTY]")}");
         }
     }
-    
+
     throw new InvalidOperationException(
-        "No se encontró la cadena de conexión. " +
-        "Define la Connection String apropiada para el entorno actual.");
+        "Connection string not found. " +
+        "Define the appropriate Connection String for the current environment.");
 }
 
-// === EF Core (con reintentos) ===
+// === EF Core (with retries) ===
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
         connectionString,
@@ -99,15 +80,14 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             maxRetryDelay: TimeSpan.FromSeconds(10),
             errorNumbersToAdd: null)));
 
-// === HttpClient para FakeStore API ===
+// === HttpClient for FakeStore API ===
 builder.Services.AddHttpClient<IFakeStoreApiService, FakeStoreApiService>(client =>
 {
     var fakeStoreConfig = builder.Configuration.GetSection("FakeStoreApi");
     var baseUrl = fakeStoreConfig["BaseUrl"] ?? "https://fakestoreapi.com";
     var timeoutSeconds = fakeStoreConfig.GetValue<int>("TimeoutSeconds", 30);
-    
+
     client.BaseAddress = new Uri(baseUrl);
-    client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 });
 
 // === Dependency Injection ===
@@ -115,30 +95,34 @@ builder.Services.AddHttpClient<IFakeStoreApiService, FakeStoreApiService>(client
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
-builder.Services.AddScoped<IWishlistRepository, WishlistRepository>(); 
+builder.Services.AddScoped<IWishlistRepository, WishlistRepository>(); // registro Wishlist
 builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
-builder.Services.AddScoped<ICartRepository, CartRepository>(); 
-builder.Services.AddScoped<IExternalMappingRepository, ExternalMappingRepository>(); 
+builder.Services.AddScoped<IExternalMappingRepository, ExternalMappingRepository>(); // 👈 FALTABA
+builder.Services.AddScoped<ICartRepository, CartRepository>();
+
 // Services
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
-builder.Services.AddScoped<IWishlistService, WishlistService>(); 
+builder.Services.AddScoped<IWishlistService, WishlistService>(); // servicio Wishlist
 builder.Services.AddScoped<IReviewService, ReviewService>();
-builder.Services.AddScoped<ICartService, CartService>(); 
+builder.Services.AddScoped<ICartService, CartService>();
+
+//  Store / Listing (F01 Product Display Page)
+builder.Services.AddScoped<IStoreService, StoreService>();
 
 // Authentication Services
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
-// === Configuración de Autenticación JWT ===
-// Obtener la clave JWT de múltiples ubicaciones para compatibilidad con Azure
+// === JWT Authentication Configuration ===
+// Get JWT key from multiple locations for Azure compatibility
 var jwtKey = configuration["Jwt:Key"] 
           ?? configuration["Jwt_Key"] 
           ?? Environment.GetEnvironmentVariable("Jwt_Key")
           ?? Environment.GetEnvironmentVariable("Jwt__Key");
 
-//Debug ayudado con la IA
+//Debug aided by AI
 if (string.IsNullOrWhiteSpace(jwtKey))
 {
     Console.WriteLine("[ERROR] JWT Key not found in any configuration source");
@@ -150,7 +134,7 @@ if (string.IsNullOrWhiteSpace(jwtKey))
             Console.WriteLine($"  {item.Key} = {(item.Value?.Length > 0 ? "[SET]" : "[EMPTY]")}");
         }
     }
-    throw new InvalidOperationException("La clave JWT no fue encontrada en ninguna ubicación válida.");
+    throw new InvalidOperationException("JWT key was not found in any valid location.");
 }
 
 Console.WriteLine($"[DEBUG] JWT Key found: {jwtKey.Length} characters");
@@ -171,26 +155,26 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// === Servicios estándar de la API ===
+// === Standard API services ===
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// === Configuración de Swagger con soporte para JWT ===
+// === Swagger configuration with JWT support ===
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "TechTrendEmporium.Api", Version = "v1" });
     c.EnableAnnotations();
 
-    // Añade la definición de seguridad para Bearer (JWT)
+    // Add security definition for Bearer (JWT)
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "Autorización JWT usando el esquema Bearer. Ingresa 'Bearer' [espacio] y luego tu token.",
+        Description = "JWT Authorization using the Bearer scheme. Enter 'Bearer' [space] and then your token.",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
-    
+
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -205,7 +189,7 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// === Crear/verificar base de datos ===
+// === Create/verify database ===
 if (builder.Configuration.GetValue<bool>("EF:ApplyMigrationsOnStartup"))
 {
     using var scope = app.Services.CreateScope();
@@ -216,7 +200,7 @@ if (builder.Configuration.GetValue<bool>("EF:ApplyMigrationsOnStartup"))
 
         logger.LogInformation("Setting up database...");
         
-        // Para desarrollo, usar EnsureCreated es más simple
+        // For development, using EnsureCreated is simpler
         if (builder.Environment.IsDevelopment())
         {
             logger.LogInformation("Creating/verifying development database...");
@@ -225,11 +209,14 @@ if (builder.Configuration.GetValue<bool>("EF:ApplyMigrationsOnStartup"))
         }
         else
         {
-            // En producción, usar migraciones
+            // In production, use migrations
             logger.LogInformation("Applying database migrations...");
             await context.Database.MigrateAsync();
             logger.LogInformation("Database migrations applied successfully");
         }
+        
+        // Seed users after database is created/migrated
+        await DbSeeder.SeedUsersAsync(context, logger);
     }
     catch (Exception ex)
     {
@@ -248,48 +235,6 @@ if (builder.Configuration.GetValue<bool>("EF:ApplyMigrationsOnStartup"))
     }
 }
 
-// === Ensure system user exists ===
-if (builder.Configuration.GetValue<bool>("EnsureSystemUser", true))
-{
-    using var scope = app.Services.CreateScope();
-    try
-    {
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        
-        var systemUserId = new Guid("00000000-0000-0000-0000-000000000001");
-        var systemUser = await context.Users.FindAsync(systemUserId);
-        
-        if (systemUser == null)
-        {
-            systemUser = new Data.Entities.User
-            {
-                Id = systemUserId,
-                Email = "system@techtrendemporium.com",
-                Username = "system",
-                PasswordHash = "SYSTEM_ACCOUNT_NOT_FOR_LOGIN",
-                Role = Data.Entities.Enums.Role.Admin,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow
-            };
-            
-            context.Users.Add(systemUser);
-            await context.SaveChangesAsync();
-            logger.LogInformation("System user created successfully");
-        }
-        else
-        {
-            logger.LogInformation("System user already exists");
-        }
-    }
-    catch (Exception ex)
-    {
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while ensuring system user exists");
-    }
-}
-
-// === Swagger (habilitable en Prod con Swagger:Enabled y Swagger:ServeAtRoot) ===
 var swaggerEnabled = builder.Configuration.GetValue<bool>("Swagger:Enabled",
                       app.Environment.IsDevelopment());
 
@@ -300,17 +245,15 @@ if (swaggerEnabled)
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "TechTrendEmporium.Api v1");
         if (builder.Configuration.GetValue<bool>("Swagger:ServeAtRoot", false))
-            c.RoutePrefix = string.Empty; // sirve Swagger en "/"
+            c.RoutePrefix = string.Empty;
     });
 }
 
-app.UseHttpsRedirection();
+// *** NO usar app.UseForwardedHeaders(...) si vamos a setear el setting en Azure ***
 
-<<<<<<< HEAD
 // === ¡MUY IMPORTANTE EL ORDEN! ===
 app.UseAuthentication(); // 1. Identifica quién es el usuario (lee el token).
 app.UseAuthorization();  // 2. Verifica si ese usuario tiene permisos.
-=======
 // Decide si forzar redirección a HTTPS
 // Sugerencia: en producción normalmente NO hace falta; Azure ya puede forzar HTTPS.
 // Si quieres forzar desde la app, excluimos /health para que el health-check sea 200.
@@ -329,9 +272,12 @@ app.UseCors("FrontPolicy");
 // === VERY IMPORTANT THE ORDER! ===
 app.UseAuthentication();
 app.UseAuthorization();
->>>>>>> d4cae3d (CORS)
+
 
 app.MapControllers();
-app.MapGet("/health", () => "Healthy");
+
+// Health endpoint rápido (debe devolver 200)
+app.MapGet("/", () => Results.Ok("OK"));
+app.MapGet("/health", () => Results.Ok("OK"));
 
 app.Run();

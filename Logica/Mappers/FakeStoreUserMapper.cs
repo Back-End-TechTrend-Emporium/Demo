@@ -1,7 +1,7 @@
 using Data.Entities;
 using Data.Entities.Enums;
 using External.FakeStore.Models;
-using Logica.Models;
+using Logica.Models.User;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -35,7 +35,8 @@ namespace Logica.Mappers
             {
                 Id = user.Id,
                 Email = user.Email,
-                Username = user.Username
+                Username = user.Username,
+                Role = user.Role
             };
         }
 
@@ -48,7 +49,8 @@ namespace Logica.Mappers
             {
                 Id = ConvertIntToGuid(fakeStoreUser.Id),
                 Email = fakeStoreUser.Email,
-                Username = fakeStoreUser.Username
+                Username = fakeStoreUser.Username,
+                Role = Role.Shopper
             };
         }
 

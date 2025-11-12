@@ -580,6 +580,11 @@ namespace Data.Migrations
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -655,6 +660,7 @@ namespace Data.Migrations
                     b.ToTable("WishlistItems");
                 });
 
+            // Foreign Key Relationships
             modelBuilder.Entity("Data.Entities.ApprovalJob", b =>
                 {
                     b.HasOne("Data.Entities.User", "Requester")
@@ -822,6 +828,7 @@ namespace Data.Migrations
                     b.Navigation("Wishlist");
                 });
 
+            // Navigation Properties
             modelBuilder.Entity("Data.Entities.Cart", b =>
                 {
                     b.Navigation("CartItems");

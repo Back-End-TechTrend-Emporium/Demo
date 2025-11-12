@@ -7,7 +7,7 @@ namespace TechTrendEmporium.Api.Controllers
 {
     [ApiController]
     [Route("api/user")]
-    [Authorize] 
+    [Authorize(Roles = "Shopper")]
     public class WishlistController : ControllerBase
     {
         private readonly IWishlistService _wishlistService;
