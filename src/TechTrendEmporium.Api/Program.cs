@@ -13,6 +13,7 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
 
+
 // === LOAD USER SECRETS IN PRODUCTION FOR LOCAL TESTING ===
 if (builder.Environment.IsProduction())
 {
@@ -250,6 +251,9 @@ if (swaggerEnabled)
 
 // *** NO usar app.UseForwardedHeaders(...) si vamos a setear el setting en Azure ***
 
+// === ¡MUY IMPORTANTE EL ORDEN! ===
+app.UseAuthentication(); // 1. Identifica quién es el usuario (lee el token).
+app.UseAuthorization();  // 2. Verifica si ese usuario tiene permisos.
 // Decide si forzar redirección a HTTPS
 // Sugerencia: en producción normalmente NO hace falta; Azure ya puede forzar HTTPS.
 // Si quieres forzar desde la app, excluimos /health para que el health-check sea 200.
@@ -264,9 +268,11 @@ if (forceHttpsRedirect)
         sub => sub.UseHttpsRedirection());
 }
 
+app.UseCors("FrontPolicy");
 // === VERY IMPORTANT THE ORDER! ===
 app.UseAuthentication();
 app.UseAuthorization();
+
 
 app.MapControllers();
 
