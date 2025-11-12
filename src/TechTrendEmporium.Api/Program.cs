@@ -12,7 +12,28 @@ using Logica.Services;
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
 
+<<<<<<< HEAD
 // === CARGAR USER SECRETS EN PRODUCTION PARA TESTING LOCAL ===
+=======
+// Configure CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FrontPolicy",
+        policy =>
+        {
+            policy.WithOrigins(
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000"
+            )
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
+        });
+});
+// === LOAD USER SECRETS IN PRODUCTION FOR LOCAL TESTING ===
+>>>>>>> d4cae3d (CORS)
 if (builder.Environment.IsProduction())
 {
     builder.Configuration.AddUserSecrets<Program>();
@@ -285,9 +306,30 @@ if (swaggerEnabled)
 
 app.UseHttpsRedirection();
 
+<<<<<<< HEAD
 // === ¡MUY IMPORTANTE EL ORDEN! ===
 app.UseAuthentication(); // 1. Identifica quién es el usuario (lee el token).
 app.UseAuthorization();  // 2. Verifica si ese usuario tiene permisos.
+=======
+// Decide si forzar redirección a HTTPS
+// Sugerencia: en producción normalmente NO hace falta; Azure ya puede forzar HTTPS.
+// Si quieres forzar desde la app, excluimos /health para que el health-check sea 200.
+var forceHttpsRedirect = builder.Configuration.GetValue<bool>(
+    "Security:ForceHttpsRedirect",
+    app.Environment.IsDevelopment()
+);
+
+if (forceHttpsRedirect)
+{
+    app.UseWhen(ctx => !ctx.Request.Path.StartsWithSegments("/health"),
+        sub => sub.UseHttpsRedirection());
+}
+
+app.UseCors("FrontPolicy");
+// === VERY IMPORTANT THE ORDER! ===
+app.UseAuthentication();
+app.UseAuthorization();
+>>>>>>> d4cae3d (CORS)
 
 app.MapControllers();
 app.MapGet("/health", () => "Healthy");
