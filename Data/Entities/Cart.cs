@@ -31,6 +31,10 @@ namespace Data.Entities
         [Column(TypeName = "decimal(10,2)")]
         public decimal FinalTotal { get; set; } = 0;
 
+        [MaxLength(512)]
+        public string? Address { get; set; }
+
+        public PaymentMethod? PaymentMethod { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public DateTime? UpdatedAt { get; set; }

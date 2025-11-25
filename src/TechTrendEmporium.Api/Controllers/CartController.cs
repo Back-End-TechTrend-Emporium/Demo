@@ -187,16 +187,14 @@ namespace TechTrendEmporium.Api.Controllers
                 return StatusCode(500, "Internal server error");
             }
         }
-
         [HttpPost("checkout")]
-        public async Task<ActionResult<CartDto>> CheckoutMyCart()
+        public async Task<ActionResult<CartDto>> CheckoutMyCart([FromBody] CheckoutRequest request)
         {
             try
             {
+                if (!ModelState.IsValid) return BadRequest(ModelState);
                 var userId = GetCurrentUserId();
-                _logger.LogInformation("User {UserId} checking out cart", userId);
-                
-                var cart = await _cartService.CheckoutUserCartAsync(userId);
+                var cart = await _cartService.CheckoutUserCartAsync(userId, request);
                 return Ok(cart);
             }
             catch (UnauthorizedAccessException)
@@ -207,13 +205,11 @@ namespace TechTrendEmporium.Api.Controllers
             {
                 return BadRequest(ex.Message);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                _logger.LogError(ex, "Error during checkout");
                 return StatusCode(500, "Internal server error");
             }
         }
-
         [HttpPost("clear")]
         public async Task<ActionResult<CartDto>> ClearMyCart()
         {

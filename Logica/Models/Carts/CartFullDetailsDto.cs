@@ -1,3 +1,4 @@
+using Data.Entities.Enums;
 using System;
 using System.Collections.Generic;
 
@@ -13,6 +14,8 @@ namespace Logica.Models.Carts
         public string CartStatus { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+        public string? Address { get; set; }
+        public PaymentMethod? PaymentMethod { get; set; }
 
         // Información del usuario
         public Guid UserId { get; set; }
