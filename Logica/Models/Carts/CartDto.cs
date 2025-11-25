@@ -1,3 +1,4 @@
+using Data.Entities.Enums;
 using System;
 using System.Collections.Generic;
 
@@ -39,5 +40,7 @@ namespace Logica.Models.Carts
         /// Estado del carrito
         /// </summary>
         public string Status { get; set; } = string.Empty;
+        public string? Address { get; set; }
+        public PaymentMethod? PaymentMethod { get; set; }
     }
 }

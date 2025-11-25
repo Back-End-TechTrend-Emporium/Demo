@@ -42,11 +42,11 @@ namespace Logica.Interfaces
         /// Limpia todo el carrito del usuario
         /// </summary>
         Task<CartDto> ClearUserCartAsync(Guid userId);
-        
+
         /// <summary>
         /// Marca el carrito como comprado (checkout)
         /// </summary>
-        Task<CartDto> CheckoutUserCartAsync(Guid userId);
+        Task<CartDto> CheckoutUserCartAsync(Guid userId, CheckoutRequest request);
 
         /// <summary>
         /// Restaura inventario de un carrito (para cancelaciones)
