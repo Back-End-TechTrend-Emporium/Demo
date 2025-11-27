@@ -34,10 +34,35 @@ E-commerce platform where technology meets fashion. Integrates FakeStore API to 
 ├── src/TechTrendEmporium.Api/     # Main API
 ├── Data/                          # Entities and DbContext
 ├── Logica/                        # Services and repositories
+├── External/                      # Integración con FakeStore (productos/categorías externas)
 ├── docs/                          # Project documentation
 └── Dockerfile                     # Containerization
 ```
 
+## External Integration
+
+El proyecto `External` es responsable de la integración con la API de FakeStore. Permite importar productos y categorías externas para poblar la base de datos local y mantener el catálogo actualizado.
+
+**Características:**
+- Obtención de productos y categorías desde FakeStore
+- Mapeo y transformación de datos externos al modelo interno
+- Servicios y modelos desacoplados del core
+
+**Estructura:**
+```
+External/
+├── FakeStore/                # Lógica de integración y mapeo
+│   ├── FakeStoreApiService.cs
+│   ├── IFakeStoreApiService.cs
+│   ├── Mappers/
+│   └── Models/
+└── External.csproj           # Proyecto de integración
+```
+
+**Uso básico:**
+El consumo de FakeStore se realiza automáticamente al inicializar la base de datos o mediante servicios internos. No requiere ejecución manual, pero puedes extenderlo para sincronizaciones periódicas o importaciones bajo demanda.
+
+Para más detalles revisa la carpeta `External/` y la documentación interna de los servicios.
 ## Quick Start
 
 ### Prerequisites

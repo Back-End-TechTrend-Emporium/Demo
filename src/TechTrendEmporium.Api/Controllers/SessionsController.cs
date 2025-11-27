@@ -83,7 +83,7 @@ namespace TechTrendEmporium.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error obteniendo el historial de sesiones del usuario");
+                _logger.LogError(ex, "Error obteniendo el historial de sesiones del usuario");  
                 return StatusCode(500, new { message = "Error interno del servidor" });
             }
         }

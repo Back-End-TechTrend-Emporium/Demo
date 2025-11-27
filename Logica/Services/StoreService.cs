@@ -39,6 +39,13 @@ namespace Logica.Services
             {
                 qry = qry.Where(p => p.Price <= q.Price.Value);
             }
+            if (!string.IsNullOrWhiteSpace(q.Category))
+            {
+                var categoryTerm = q.Category.Trim().ToLower();
+                qry = qry.Where(p => p.Category != null && 
+                    (p.Category.Name.ToLower() == categoryTerm ||
+                     p.Category.Slug.ToLower() == categoryTerm));
+            }
 
             // Orden (enums)
             var desc = q.SortDir == SortDirection.Desc;

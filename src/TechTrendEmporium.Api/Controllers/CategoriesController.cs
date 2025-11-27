@@ -1,6 +1,5 @@
 using Logica.Interfaces;
 using Logica.Models.Category.Requests;
-using Logica.Models.Products;
 using Logica.Models.Category.Responses;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,16 +13,13 @@ namespace TechTrendEmporium.Api.Controllers
         #region Fields and Constructor
 
         private readonly ICategoryService _categoryService;
-        private readonly IProductService _productService;
         private readonly ILogger<CategoriesController> _logger;
 
         public CategoriesController(
             ICategoryService categoryService,
-            IProductService productService,
             ILogger<CategoriesController> logger)
         {
             _categoryService = categoryService;
-            _productService = productService;
             _logger = logger;
         }
 
@@ -99,58 +95,6 @@ namespace TechTrendEmporium.Api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error searching categories");
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
-        /// <summary>
-        /// Get products filtered by category slug from local database
-        /// </summary>
-        [HttpGet("store/products")]
-        public async Task<ActionResult<CategoryFilterResponseDto>> GetProductsByCategory([FromQuery] string category)
-        {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(category))
-                {
-                    return BadRequest("Category parameter is required");
-                }
-
-                // First try to find the category by slug or name
-                var categoryEntity = await _categoryService.GetCategoryBySlugAsync(category);
-                if (categoryEntity == null)
-                {
-                    // If not found by slug, try by name (for backward compatibility)
-                    var allCategories = await _categoryService.GetApprovedCategoriesAsync();
-                    categoryEntity = allCategories.FirstOrDefault(c => 
-                        c.Name.Equals(category, StringComparison.OrdinalIgnoreCase));
-                }
-
-                IEnumerable<ProductDto> products;
-                
-                if (categoryEntity != null)
-                {
-                    // Get products from local database by category ID
-                    products = await _productService.GetProductsByCategoryIdAsync(categoryEntity.Id);
-                }
-                else
-                {
-                    // Fallback: Try to get from FakeStore if category not found locally
-                    _logger.LogWarning("Category '{Category}' not found locally, trying FakeStore", category);
-                    products = await _productService.GetProductsByCategoryFromFakeStoreAsync(category);
-                }
-                
-                var response = new CategoryFilterResponseDto
-                {
-                    SelectedCategory = category,
-                    FilteredProducts = products
-                };
-
-                return Ok(response);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error filtering products by category {Category}", category);
                 return StatusCode(500, "Internal server error");
             }
         }

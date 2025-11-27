@@ -4,6 +4,7 @@ using Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251106224027_AddUserName")]
+    partial class AddUserName
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -112,10 +115,6 @@ namespace Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Address")
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
                     b.Property<Guid?>("AppliedCouponId")
                         .HasColumnType("uniqueidentifier");
 
@@ -129,9 +128,6 @@ namespace Data.Migrations
                     b.Property<decimal>("FinalTotal")
                         .HasPrecision(10, 2)
                         .HasColumnType("decimal(10,2)");
-
-                    b.Property<int?>("PaymentMethod")
-                        .HasColumnType("int");
 
                     b.Property<decimal>("ShippingCost")
                         .HasPrecision(10, 2)

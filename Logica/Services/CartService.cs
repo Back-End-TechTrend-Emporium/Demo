@@ -441,7 +441,7 @@ namespace Logica.Services
             }
         }
 
-        // === OPERACIONES CENTRADAS EN USUARIO (LÓGICA REAL) ===
+       
 
         public async Task<IEnumerable<CartDto>> GetCartsByUserIdAsync(Guid userId)
         {
@@ -831,29 +831,16 @@ namespace Logica.Services
             }
         }
 
-        public async Task<CartDto> CheckoutUserCartAsync(Guid userId)
+        public async Task<CartDto> CheckoutUserCartAsync(Guid userId, CheckoutRequest request)
         {
             try
             {
                 var cart = await _cartRepository.GetActiveCartByUserIdAsync(userId);
-                if (cart == null)
-                {
-                    throw new InvalidOperationException("User has no active cart");
-                }
+                if (cart == null) throw new InvalidOperationException("User has no active cart");
+                if (!cart.CartItems.Any()) throw new InvalidOperationException("Cannot checkout empty cart");
 
-                if (!cart.CartItems.Any())
-                {
-                    throw new InvalidOperationException("Cannot checkout empty cart");
-                }
-
-                _logger.LogInformation("?? Processing checkout for user {UserId}, cart {CartId} with {ItemCount} items", 
-                    userId, cart.Id, cart.CartItems.Count);
-
-                // === VALIDAR INVENTARIO EN CHECKOUT (Stock ya reservado) ===
                 var validationErrors = new List<string>();
-
-                // ? USAR TOLIST() PARA EVITAR "COLLECTION MODIFIED" ERROR
-                var cartItemsList = cart.CartItems.ToList(); // ? FIX AQUÍ
+                var cartItemsList = cart.CartItems.ToList();
 
                 foreach (var cartItem in cartItemsList)
                 {
@@ -863,75 +850,40 @@ namespace Logica.Services
                         validationErrors.Add($"Product '{cartItem.TitleSnapshot}' no longer exists");
                         continue;
                     }
-
-                    // ? VALIDAR CONTRA TOTAL STOCK (no Available, porque ya está reservado)
                     if (product.InventoryTotal < cartItem.Quantity)
                     {
-                        validationErrors.Add(
-                            $"Not enough total inventory for product '{product.Title}'. " +
-                            $"Total Stock: {product.InventoryTotal}, " +
-                            $"Requested: {cartItem.Quantity}");
-                        continue;
+                        validationErrors.Add($"Not enough total inventory for product '{product.Title}'. Total Stock: {product.InventoryTotal}, Requested: {cartItem.Quantity}");
                     }
-
-                    _logger.LogInformation("? Checkout validation passed for {ProductTitle}: " +
-                        "Total Stock {TotalStock} >= Requested {Requested} (Available: {Available}, Reserved: {Reserved})", 
-                        product.Title, product.InventoryTotal, cartItem.Quantity, 
-                        product.InventoryAvailable, product.InventoryTotal - product.InventoryAvailable);
                 }
 
-                // Si hay errores de validación, no procesar el checkout
                 if (validationErrors.Any())
                 {
                     var errorMessage = "Checkout failed due to inventory issues:\n" + string.Join("\n", validationErrors);
-                    _logger.LogWarning("? Checkout validation failed: {Errors}", string.Join(", ", validationErrors));
                     throw new InvalidOperationException(errorMessage);
                 }
 
-                // === PROCESAR CHECKOUT: CONFIRMAR VENTA ===
-                // ? USAR TOLIST() PARA EVITAR "COLLECTION MODIFIED" ERROR
-                foreach (var cartItem in cartItemsList) // ? YA TENEMOS LA LISTA
+                foreach (var cartItem in cartItemsList)
                 {
                     var product = await _productRepository.GetByIdAsync(cartItem.ProductId);
                     if (product != null)
                     {
-                        // El stock ya fue reservado al agregar al carrito
-                        // Ahora solo reducimos el total para confirmar la venta
-                        var previousTotal = product.InventoryTotal;
                         product.InventoryTotal -= cartItem.Quantity;
-                        
-                        // Asegurar que no quede negativo
-                        if (product.InventoryTotal < 0)
-                        {
-                            product.InventoryTotal = 0;
-                        }
-                        
+                        if (product.InventoryTotal < 0) product.InventoryTotal = 0;
                         product.UpdatedAt = DateTime.UtcNow;
-                        
-                        _logger.LogInformation("?? Sale confirmed for product {ProductTitle}: " +
-                            "Total Stock {PreviousTotal} ? {NewTotal} (-{Quantity}). " +
-                            "Available remains: {Available}", 
-                            product.Title, previousTotal, product.InventoryTotal, cartItem.Quantity,
-                            product.InventoryAvailable);
-                        
                         await _productRepository.UpdateAsync(product);
                     }
                 }
 
-                // === MARCAR CARRITO COMO COMPRADO ===
+                cart.Address = request.Address;
+                cart.PaymentMethod = request.PaymentMethod;
                 cart.Status = CartStatus.CheckedOut;
                 cart.UpdatedAt = DateTime.UtcNow;
 
                 var updatedCart = await _cartRepository.UpdateCartAsync(cart);
-                
-                _logger.LogInformation("? Checkout completed successfully for user {UserId}. Cart {CartId} checked out with {ItemCount} items", 
-                    userId, cart.Id, cart.CartItems.Count);
-
                 return updatedCart.ToCartDtoExtended();
             }
-            catch (Exception ex)
+            catch
             {
-                _logger.LogError(ex, "?? Error during checkout for user {UserId}", userId);
                 throw;
             }
         }

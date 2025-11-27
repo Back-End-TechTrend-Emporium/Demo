@@ -1,5 +1,6 @@
 using Data.Entities;
 using Logica.Models.Carts;
+using Data.Entities.Enums;
 
 namespace Logica.Mappers
 {
@@ -36,7 +37,9 @@ namespace Logica.Mappers
                 TotalAfterDiscount = cart.TotalBeforeDiscount - cart.DiscountAmount,
                 ShippingCost = cart.ShippingCost,
                 FinalTotal = cart.FinalTotal,
-                
+                Address = cart.Address,
+                PaymentMethod = cart.PaymentMethod,
+
                 CreatedAt = cart.CreatedAt,
                 UpdatedAt = cart.UpdatedAt,
                 Status = cart.Status.ToString()
@@ -65,7 +68,10 @@ namespace Logica.Mappers
                 TotalBeforeDiscount = cartDto.TotalBeforeDiscount,
                 DiscountAmount = cartDto.TotalBeforeDiscount - cartDto.TotalAfterDiscount,
                 ShippingCost = cartDto.ShippingCost,
-                FinalTotal = cartDto.FinalTotal
+                FinalTotal = cartDto.FinalTotal,
+                Address = cartDto.Address,
+                PaymentMethod = cartDto.PaymentMethod
+
             };
         }
 
@@ -84,6 +90,9 @@ namespace Logica.Mappers
                 CartStatus = cart.Status.ToString(),
                 CreatedAt = cart.CreatedAt,
                 UpdatedAt = cart.UpdatedAt,
+                Address = cart.Address,
+                PaymentMethod = cart.PaymentMethod,
+
 
                 // Información del usuario
                 UserId = cart.UserId,
@@ -112,6 +121,7 @@ namespace Logica.Mappers
                 // Estadísticas
                 TotalItems = cart.CartItems?.Count ?? 0,
                 TotalQuantity = cart.CartItems?.Sum(ci => ci.Quantity) ?? 0
+
             };
         }
 
